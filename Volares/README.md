@@ -36,6 +36,24 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 
 Use the publishable key, never a `sb_secret_` key in the app. The login and registration screens use Supabase Auth; registration stores the first and last name in the user's Auth metadata. If email confirmation is enabled in Supabase, users must confirm their email before signing in.
 
+## Configure Sanity
+
+Abra o arquivo `.env.local` e substitua somente os valores das variaveis abaixo:
+
+```env
+EXPO_PUBLIC_SANITY_PROJECT_ID=COLOQUE_AQUI_SEU_PROJECT_ID
+EXPO_PUBLIC_SANITY_DATASET=production
+EXPO_PUBLIC_SANITY_API_VERSION=COLOQUE_AQUI_A_DATA_ATUAL
+```
+
+- `EXPO_PUBLIC_SANITY_PROJECT_ID`: copie o Project ID encontrado na configuracao do seu projeto Sanity.
+- `EXPO_PUBLIC_SANITY_DATASET`: normalmente use `production`. So mude se voce criou outro dataset.
+- `EXPO_PUBLIC_SANITY_API_VERSION`: use uma data no formato `AAAA-MM-DD`, por exemplo `2026-11-20`.
+
+A extensao `EXPO_PUBLIC_` faz estas variaveis ficarem disponiveis no app Expo.
+Nao use um token secreto no app. Para conteudo publico, o `@sanity/client` usa o Project ID e o dataset.
+Depois de editar `.env.local`, pare o Expo e inicie novamente com `npx expo start`.
+
 ## Get a fresh project
 
 When you're ready, run:

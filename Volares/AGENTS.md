@@ -39,3 +39,15 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+
+## Airport and aircraft selection
+
+When implementing flight search or booking, load airports and aircraft from the
+catalog instead of hard-coding options. After the user selects an airport, show
+aircraft according to this rule: "Quando o usuário escolher um aeroporto,
+verifique o Porte dele. Se for Pequeno, mostre apenas aeronaves de porte
+Pequeno. Se for Medio, mostre Pequeno e Medio. Se for Grande, mostre todas."
+
+The aircraft catalog includes helicopter, piston, turboprop, and jet models.
+Keep capacity and airport-size filtering consistent with the Sanity and Supabase
+catalogs.

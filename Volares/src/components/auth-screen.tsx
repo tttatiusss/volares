@@ -1,4 +1,5 @@
 import { Link, router } from 'expo-router';
+import { Image } from 'expo-image';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { useState } from 'react';
 import {
@@ -14,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BrandAssets } from '@/constants/brand';
 import { getSupabaseClient } from '@/lib/supabase';
 
 const colors = {
@@ -223,15 +225,12 @@ export function AuthScreen({ mode }: AuthScreenProps) {
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled">
             <View style={styles.hero}>
-              <View style={styles.brand}>
-                <SymbolView
-                  name={{ ios: 'paperplane.fill', android: 'send', web: 'send' }}
-                  size={38}
-                  tintColor={colors.pink}
-                />
-                <Text style={styles.brandName}>Volares</Text>
-              </View>
-              <Text style={styles.tagline}>Te Leva aos céus.</Text>
+              <Image
+                accessibilityLabel="Volares"
+                contentFit="contain"
+                source={BrandAssets.logo}
+                style={styles.brandLogo}
+              />
             </View>
 
             <View style={styles.card}>
@@ -269,7 +268,7 @@ export function AuthScreen({ mode }: AuthScreenProps) {
                   keyboardType="email-address"
                   label="E-mail"
                   onChangeText={setEmail}
-                  placeholder="voce@exemplo.com"
+                  placeholder="azul@gmail.com"
                   value={email}
                 />
 
@@ -414,31 +413,27 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 28,
   },
-  brand: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  brandName: {
-    color: colors.navy,
-    fontSize: 38,
-    fontWeight: '800',
-    letterSpacing: -1.5,
+  brandLogo: {
+    width: 220,
+    height: 105,
   },
   tagline: {
+    alignSelf: 'center',
     color: colors.white,
     fontSize: 14,
     fontWeight: '500',
-    marginTop: 9,
+    marginTop: -3,
+    textAlign: 'center',
   },
   card: {
     width: '100%',
-    maxWidth: 520,
     alignSelf: 'center',
     flexGrow: 1,
     backgroundColor: colors.white,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
     paddingHorizontal: 26,
     paddingTop: 30,
     paddingBottom: 28,

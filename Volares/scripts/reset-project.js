@@ -20,7 +20,7 @@ const exampleDirPath = path.join(root, exampleDir);
 const exampleAssets = [
   "expo-badge.png",
   "expo-badge-white.png",
-  "expo-logo.png",
+  "volares-logo.png",
   "logo-glow.png",
   "react-logo.png",
   "react-logo@2x.png",
