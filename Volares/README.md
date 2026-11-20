@@ -25,6 +25,17 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Configure Supabase
+
+Create a Supabase project and add its Project URL and publishable key to `.env.local`:
+
+```env
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+```
+
+Use the publishable key, never a `sb_secret_` key in the app. The login and registration screens use Supabase Auth; registration stores the first and last name in the user's Auth metadata. If email confirmation is enabled in Supabase, users must confirm their email before signing in.
+
 ## Get a fresh project
 
 When you're ready, run:
