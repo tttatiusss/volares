@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
 
 import { BrandAssets } from '@/constants/brand';
 
@@ -21,6 +22,8 @@ type ReservationsSectionProps = {
   error: string;
   onRetry: () => void;
   onBrowseFlights: () => void;
+  initialReservationReference?: string | null;
+  onInitialReservationOpened?: () => void;
 };
 
 const colors = {
@@ -76,9 +79,18 @@ function PaperPlaneIcon() {
   );
 }
 
-function ReservationCard({ reservation }: { reservation: ReservationDetails }) {
+function ReservationCard({
+  reservation,
+  onOpenTicket,
+}: {
+  reservation: ReservationDetails;
+  onOpenTicket: (reservation: ReservationDetails) => void;
+}) {
   return (
-    <View style={styles.reservationCard}>
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => onOpenTicket(reservation)}
+      style={({ pressed }) => [styles.reservationCard, pressed && styles.pressed]}>
       <View style={styles.cardHeading}>
         <View>
           <Text style={styles.referenceLabel}>LOCALIZADOR</Text>
@@ -125,7 +137,7 @@ function ReservationCard({ reservation }: { reservation: ReservationDetails }) {
           {formatPrice(reservation.totalPrice, reservation.currency)}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -135,8 +147,24 @@ export function ReservationsSection({
   error,
   onRetry,
   onBrowseFlights,
+  initialReservationReference,
+  onInitialReservationOpened,
 }: ReservationsSectionProps) {
+  const [selectedReservation, setSelectedReservation] =
+    useState<ReservationDetails | null>(null);
+
+  useEffect(() => {
+    if (!initialReservationReference || loading) return;
+    const reservation = reservations.find(
+      (item) => item.bookingReference === initialReservationReference,
+    );
+    if (!reservation) return;
+    setSelectedReservation(reservation);
+    onInitialReservationOpened?.();
+  }, [initialReservationReference, loading, onInitialReservationOpened, reservations]);
+
   return (
+    <>
     <View style={styles.content}>
       <Text style={styles.eyebrow}>SUA CONTA</Text>
       <Text style={styles.title}>Minhas reservas</Text>
@@ -176,11 +204,103 @@ export function ReservationsSection({
       ) : (
         <View style={styles.list}>
           {reservations.map((reservation) => (
-            <ReservationCard key={reservation.id} reservation={reservation} />
+            <ReservationCard
+              key={reservation.id}
+              reservation={reservation}
+              onOpenTicket={setSelectedReservation}
+            />
           ))}
         </View>
       )}
     </View>
+    <Modal
+      animationType="slide"
+      onRequestClose={() => setSelectedReservation(null)}
+      transparent
+      visible={selectedReservation !== null}>
+      <View style={styles.ticketBackdrop}>
+        <View style={styles.ticketSheet}>
+          <View style={styles.ticketHandle} />
+          <View style={styles.ticketHeader}>
+            <View>
+              <Text style={styles.ticketEyebrow}>RESERVA VOLARES</Text>
+              <Text style={styles.ticketTitle}>Seu tíquete</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Fechar tíquete"
+              onPress={() => setSelectedReservation(null)}
+              style={styles.ticketClose}>
+              <Text style={styles.ticketCloseText}>×</Text>
+            </Pressable>
+          </View>
+
+          {selectedReservation ? (
+            <>
+              <View style={styles.ticketCard}>
+                <View style={styles.ticketTop}>
+                  <View style={styles.ticketPlaneBadge}>
+                    <PaperPlaneIcon />
+                  </View>
+                  <View>
+                    <Text style={styles.ticketLabel}>LOCALIZADOR</Text>
+                    <Text style={styles.ticketReference}>
+                      {selectedReservation.bookingReference}
+                    </Text>
+                  </View>
+                  <View style={styles.confirmedBadge}>
+                    <Text style={styles.confirmedText}>Confirmada</Text>
+                  </View>
+                </View>
+                <View style={styles.ticketDivider} />
+                <View style={styles.ticketRow}>
+                  <Text style={styles.ticketFieldLabel}>Partida</Text>
+                  <Text style={styles.ticketFieldValue}>
+                    {formatDeparture(selectedReservation.departureDate)}
+                  </Text>
+                </View>
+                <View style={styles.ticketRow}>
+                  <Text style={styles.ticketFieldLabel}>Voo</Text>
+                  <Text style={styles.ticketFieldValue}>
+                    {selectedReservation.flightId}
+                  </Text>
+                </View>
+                <View style={styles.ticketRow}>
+                  <Text style={styles.ticketFieldLabel}>Passageiros</Text>
+                  <Text style={styles.ticketFieldValue}>
+                    {selectedReservation.passengerCount}
+                  </Text>
+                </View>
+                <View style={styles.ticketCut}>
+                  <View style={styles.ticketCutCircleLeft} />
+                  <View style={styles.ticketCutLine} />
+                  <View style={styles.ticketCutCircleRight} />
+                </View>
+                <View style={styles.ticketFooter}>
+                  <Text style={styles.ticketTotalLabel}>Total pago</Text>
+                  <Text style={styles.ticketTotalValue}>
+                    {formatPrice(
+                      selectedReservation.totalPrice,
+                      selectedReservation.currency,
+                    )}
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setSelectedReservation(null)}
+                style={({ pressed }) => [
+                  styles.ticketDoneButton,
+                  pressed && styles.pressed,
+                ]}>
+                <Text style={styles.ticketDoneText}>Fechar tíquete</Text>
+              </Pressable>
+            </>
+          ) : null}
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -364,6 +484,178 @@ const styles = StyleSheet.create({
   totalPrice: {
     color: colors.navy,
     fontSize: 16,
+    fontWeight: '800',
+  },
+  ticketBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(20, 29, 52, 0.45)',
+  },
+  ticketSheet: {
+    maxHeight: '88%',
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 18,
+  },
+  ticketHandle: {
+    width: 42,
+    height: 4,
+    alignSelf: 'center',
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    marginBottom: 10,
+  },
+  ticketHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  ticketEyebrow: {
+    color: colors.blue,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  ticketTitle: {
+    color: colors.navy,
+    fontSize: 20,
+    fontWeight: '900',
+    marginTop: 3,
+  },
+  ticketClose: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+    backgroundColor: colors.surface,
+  },
+  ticketCloseText: {
+    color: colors.text,
+    fontSize: 24,
+    lineHeight: 27,
+  },
+  ticketCard: {
+    borderRadius: 18,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+  },
+  ticketTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  ticketPlaneBadge: {
+    width: 42,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 13,
+    backgroundColor: colors.blue,
+  },
+  ticketLabel: {
+    color: colors.muted,
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  ticketReference: {
+    color: colors.navy,
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  confirmedBadge: {
+    marginLeft: 'auto',
+    borderRadius: 10,
+    backgroundColor: '#DCF7EE',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  confirmedText: {
+    color: '#287A4B',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  ticketDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginVertical: 12,
+  },
+  ticketRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 9,
+  },
+  ticketFieldLabel: {
+    color: colors.muted,
+    fontSize: 11,
+  },
+  ticketFieldValue: {
+    maxWidth: 230,
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'right',
+  },
+  ticketCut: {
+    height: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ticketCutCircleLeft: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.white,
+    marginLeft: -24,
+  },
+  ticketCutLine: {
+    flex: 1,
+    height: 1,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#C9D6E8',
+  },
+  ticketCutCircleRight: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.white,
+    marginRight: -24,
+  },
+  ticketFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 14,
+  },
+  ticketTotalLabel: {
+    color: colors.muted,
+    fontSize: 11,
+  },
+  ticketTotalValue: {
+    color: colors.blue,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  ticketDoneButton: {
+    minHeight: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    backgroundColor: colors.blue,
+    marginTop: 12,
+  },
+  ticketDoneText: {
+    color: colors.white,
+    fontSize: 13,
     fontWeight: '800',
   },
 });

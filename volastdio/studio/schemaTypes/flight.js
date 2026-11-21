@@ -6,6 +6,17 @@ export default defineType({
   type: 'document',
   fields: [
     defineField({
+      name: 'pilotName',
+      title: 'Nome do piloto',
+      type: 'string',
+    }),
+    defineField({
+      name: 'pilotPhoto',
+      title: 'Foto do piloto',
+      type: 'image',
+      options: {hotspot: true},
+    }),
+    defineField({
       name: 'airline',
       title: 'Companhia aérea',
       type: 'reference',

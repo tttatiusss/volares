@@ -26,6 +26,8 @@ import {
   type Aircraft,
   type FeaturedRoute,
   type FlightResult,
+  calculateFlightQuote,
+  createSampleFlightResults,
   fetchFeaturedRoutes,
   fetchFlightCatalog,
   fetchFlightResults,
@@ -49,8 +51,8 @@ const colors = {
 
 type PickerTarget = 'origin' | 'destination' | null;
 type HomeTab = 'home' | 'reservations' | 'profile';
-type TripType = 'roundTrip' | 'oneWay';
-type CalendarTarget = 'departure' | 'return' | null;
+type CalendarTarget = 'departure' | null;
+type FlightSortMode = 'best' | 'cheapest' | 'fastest';
 const sampleFeaturedRouteCodes: [string, string][] = [
   ['SBSP', 'SBRJ'],
   ['SBSP', 'SBGL'],
@@ -172,18 +174,6 @@ function getAircraftTypeLabel(type: Aircraft['tipo'] | null) {
   }
 }
 
-function getFlightStatusLabel(status: string) {
-  const labels: Record<string, string> = {
-    scheduled: 'Agendado',
-    confirming: 'Em confirmação',
-    confirmed: 'Confirmado',
-    in_flight: 'Em voo',
-    completed: 'Concluído',
-    cancelled: 'Cancelado',
-  };
-  return labels[status] ?? status;
-}
-
 function getUserMetadataText(metadata: Record<string, unknown>, ...keys: string[]) {
   for (const key of keys) {
     const value = metadata[key];
@@ -201,12 +191,6 @@ export function FlightSearchHome() {
   const [origin, setOrigin] = useState<Airport | null>(null);
   const [destination, setDestination] = useState<Airport | null>(null);
   const [departureDate, setDepartureDate] = useState(getLocalDateInput);
-  const [returnDate, setReturnDate] = useState(() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return formatLocalDateInput(tomorrow);
-  });
-  const [tripType, setTripType] = useState<TripType>('roundTrip');
   const [calendarTarget, setCalendarTarget] = useState<CalendarTarget>(null);
   const [calendarSelectedDate, setCalendarSelectedDate] = useState(departureDate);
   const [calendarMonth, setCalendarMonth] = useState(() => {
@@ -221,9 +205,9 @@ export function FlightSearchHome() {
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [flights, setFlights] = useState<FlightResult[]>([]);
-  const [returnFlights, setReturnFlights] = useState<FlightResult[]>([]);
   const [selectedDepartureFlightId, setSelectedDepartureFlightId] = useState<string | null>(null);
-  const [selectedReturnFlightId, setSelectedReturnFlightId] = useState<string | null>(null);
+  const [detailFlightId, setDetailFlightId] = useState<string | null>(null);
+  const [flightSortMode, setFlightSortMode] = useState<FlightSortMode>('best');
   const [featuredRoutes, setFeaturedRoutes] = useState<FeaturedRoute[]>([]);
   const [featuredRoutesError, setFeaturedRoutesError] = useState('');
   const [activeTab, setActiveTab] = useState<HomeTab>('home');
@@ -237,8 +221,9 @@ export function FlightSearchHome() {
   const [reservations, setReservations] = useState<ReservationDetails[]>([]);
   const [reservationsLoading, setReservationsLoading] = useState(false);
   const [reservationsError, setReservationsError] = useState('');
+  const [openReservationReference, setOpenReservationReference] = useState<string | null>(null);
   const todayValue = getLocalDateInput();
-  const calendarMinimumValue = calendarTarget === 'return' ? departureDate : todayValue;
+  const calendarMinimumValue = todayValue;
   const calendarMinimumDate = getDateFromInput(calendarMinimumValue);
   const calendarDays = getCalendarDays(calendarMonth);
   const calendarMonthLabel = calendarMonth.toLocaleDateString('pt-BR', {
@@ -389,6 +374,23 @@ export function FlightSearchHome() {
     },
     [airports, featuredRoutes],
   );
+  const sortedDepartureFlights = useMemo(() => {
+    return [...flights].sort((first, second) => {
+      if (flightSortMode === 'cheapest') {
+        return (
+          calculateFlightQuote(first, passengerCount).perPassenger -
+          calculateFlightQuote(second, passengerCount).perPassenger
+        );
+      }
+      if (flightSortMode === 'fastest') return first.duration - second.duration;
+      return (
+        new Date(first.departureTime).getTime() - new Date(second.departureTime).getTime()
+      );
+    });
+  }, [flights, flightSortMode, passengerCount]);
+  const detailFlight = detailFlightId
+    ? flights.find((flight) => flight._id === detailFlightId) ?? null
+    : null;
   const selectedAircraft = compatibleAircraft.find(
     (item) => item.modelo === selectedAircraftModel,
   );
@@ -436,18 +438,12 @@ export function FlightSearchHome() {
       setSearchError('Origem e destino precisam ser diferentes.');
       return;
     }
-    if (tripType === 'roundTrip' && returnDate < departureDate) {
-      setSearchError('A data de volta precisa ser igual ou posterior à partida.');
-      return;
-    }
-
     setSearchError('');
     setSearching(true);
     setHasSearched(true);
     setFlights([]);
-    setReturnFlights([]);
+    setDetailFlightId(null);
     setSelectedDepartureFlightId(null);
-    setSelectedReturnFlightId(null);
 
     try {
       const departureWindow = getDateWindow(departureDate);
@@ -459,26 +455,33 @@ export function FlightSearchHome() {
         passengerCount,
         aircraftModel: selectedAircraft?.modelo ?? null,
       });
-      const returnWindow = tripType === 'roundTrip' ? getDateWindow(returnDate) : null;
-      const returnSearch = returnWindow
-        ? fetchFlightResults({
-            originCode: destination.code,
-            destinationCode: origin.code,
-            departureStart: returnWindow.start,
-            departureEnd: returnWindow.end,
-            passengerCount,
-            aircraftModel: selectedAircraft?.modelo ?? null,
-          })
-        : Promise.resolve<FlightResult[]>([]);
-      const [departureResults, returnResults] = await Promise.all([
-        departureSearch,
-        returnSearch,
-      ]);
-      setFlights(departureResults);
-      setReturnFlights(returnResults);
-    } catch (error) {
-      setSearchError(
-        error instanceof Error ? error.message : 'Não foi possível buscar os voos.',
+      const realResults = await departureSearch;
+      setFlights(
+        realResults.length > 0
+          ? realResults
+          : createSampleFlightResults({
+              originCode: origin.code,
+              originCity: origin.city,
+              destinationCode: destination.code,
+              destinationCity: destination.city,
+              departureDate,
+              passengerCount,
+              aircraftModel: selectedAircraft?.modelo ?? null,
+              aircraftSeats: selectedAircraft?.assentos ?? null,
+            }),
+      );
+    } catch {
+      setFlights(
+        createSampleFlightResults({
+          originCode: origin.code,
+          originCity: origin.city,
+          destinationCode: destination.code,
+          destinationCity: destination.city,
+          departureDate,
+          passengerCount,
+          aircraftModel: selectedAircraft?.modelo ?? null,
+          aircraftSeats: selectedAircraft?.assentos ?? null,
+        }),
       );
     } finally {
       setSearching(false);
@@ -486,8 +489,8 @@ export function FlightSearchHome() {
   }
 
   function openCalendar(target: Exclude<CalendarTarget, null>) {
-    const minimumDate = target === 'return' ? departureDate : todayValue;
-    const selectedDate = target === 'return' ? returnDate : departureDate;
+    const minimumDate = todayValue;
+    const selectedDate = departureDate;
     const dateToShow = selectedDate < minimumDate ? minimumDate : selectedDate;
     const date = getDateFromInput(dateToShow);
 
@@ -497,13 +500,7 @@ export function FlightSearchHome() {
   }
 
   function confirmCalendarDate() {
-    if (calendarTarget === 'departure') {
-      setDepartureDate(calendarSelectedDate);
-      if (returnDate < calendarSelectedDate) setReturnDate(calendarSelectedDate);
-    } else if (calendarTarget === 'return') {
-      setReturnDate(calendarSelectedDate);
-    }
-
+    if (calendarTarget === 'departure') setDepartureDate(calendarSelectedDate);
     setHasSearched(false);
     setCalendarTarget(null);
   }
@@ -514,7 +511,7 @@ export function FlightSearchHome() {
     setSelectedAircraftModel(null);
     setHasSearched(false);
     setFlights([]);
-    setReturnFlights([]);
+    setDetailFlightId(null);
     setSearchError('');
   }
 
@@ -527,7 +524,7 @@ export function FlightSearchHome() {
     setSelectedAircraftModel(null);
     setHasSearched(false);
     setFlights([]);
-    setReturnFlights([]);
+    setDetailFlightId(null);
     setAirportPickerTarget(null);
     setPickerSearch('');
     setSearchError('');
@@ -536,7 +533,9 @@ export function FlightSearchHome() {
   function showTab(tab: HomeTab) {
     setActiveTab(tab);
     if (tab === 'reservations') {
-      void loadReservations();
+      if (reservations.length === 0) {
+        void loadReservations();
+      }
     }
   }
 
@@ -699,6 +698,8 @@ export function FlightSearchHome() {
                     loading={reservationsLoading}
                     onBrowseFlights={() => showTab('home')}
                     onRetry={() => void loadReservations()}
+                    initialReservationReference={openReservationReference}
+                    onInitialReservationOpened={() => setOpenReservationReference(null)}
                     reservations={reservations}
                   />
                 </ScrollView>
@@ -708,6 +709,34 @@ export function FlightSearchHome() {
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}>
                 <View style={styles.content}>
+                  {detailFlight ? (
+                    <FlightDetails
+                      flight={detailFlight}
+                      passengerCount={passengerCount}
+                      profile={profile}
+                      onBack={() => setDetailFlightId(null)}
+                      onCompleteReceipt={(bookingCode) => {
+                        setOpenReservationReference(bookingCode);
+                        setActiveTab('reservations');
+                      }}
+                      onPaymentSuccess={(_paymentMethod, bookingCode) =>
+                        setReservations((current) => [
+                          {
+                            id: `demo-${detailFlight._id}-${Date.now()}`,
+                            flightId: detailFlight._id,
+                            departureDate: detailFlight.departureTime,
+                            passengerCount,
+                            totalPrice: calculateFlightQuote(detailFlight, passengerCount).total,
+                            currency: 'BRL',
+                            status: 'confirmed',
+                            bookingReference: bookingCode,
+                          },
+                          ...current,
+                        ])
+                      }
+                    />
+                  ) : !hasSearched ? (
+                    <>
                   <Text style={styles.title}>Para onde vamos voar?</Text>
                   <Text style={styles.subtitle}>
                     Escolha sua rota e encontre o voo.
@@ -715,52 +744,9 @@ export function FlightSearchHome() {
 
                   <View style={styles.searchFormCard}>
                     <View style={styles.searchFormContent}>
-                      <View style={styles.tripTypeToggle}>
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: tripType === 'roundTrip' }}
-                          onPress={() => {
-                            setTripType('roundTrip');
-                            setHasSearched(false);
-                            setSearchError('');
-                          }}
-                          style={[
-                            styles.tripTypeOption,
-                            tripType === 'roundTrip' && styles.tripTypeOptionSelected,
-                          ]}>
-                          <Text
-                            style={[
-                              styles.tripTypeText,
-                              tripType === 'roundTrip' && styles.tripTypeTextSelected,
-                            ]}>
-                            Ida e volta
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: tripType === 'oneWay' }}
-                          onPress={() => {
-                            setTripType('oneWay');
-                            setHasSearched(false);
-                            setSearchError('');
-                          }}
-                          style={[
-                            styles.tripTypeOption,
-                            tripType === 'oneWay' && styles.tripTypeOptionSelected,
-                          ]}>
-                          <Text
-                            style={[
-                              styles.tripTypeText,
-                              tripType === 'oneWay' && styles.tripTypeTextSelected,
-                            ]}>
-                            Somente ida
-                          </Text>
-                        </Pressable>
-                      </View>
-
                       <View style={styles.routeFields}>
                         <AirportField
-                          label="De"
+                          label="Origem"
                           airport={origin}
                           placeholder="Cidade, aeroporto ou local"
                           onPress={() => setAirportPickerTarget('origin')}
@@ -788,7 +774,7 @@ export function FlightSearchHome() {
                           <View style={styles.routeSwapLine} />
                         </View>
                         <AirportField
-                          label="Para"
+                          label="Destino"
                           airport={destination}
                           placeholder="Cidade, aeroporto ou local"
                           onPress={() => setAirportPickerTarget('destination')}
@@ -801,16 +787,6 @@ export function FlightSearchHome() {
                           onPress={() => openCalendar('departure')}
                           value={departureDate}
                         />
-                        {tripType === 'roundTrip' ? (
-                          <>
-                            <View style={styles.detailDivider} />
-                            <DateField
-                              label="Volta"
-                              onPress={() => openCalendar('return')}
-                              value={returnDate}
-                            />
-                          </>
-                        ) : null}
                       </View>
 
                       <View style={styles.passengerRow}>
@@ -951,7 +927,6 @@ export function FlightSearchHome() {
                             setSelectedAircraftModel(null);
                             setHasSearched(false);
                             setFlights([]);
-                            setReturnFlights([]);
                             setSearchError('');
                           }}
                           style={({ pressed }) => [
@@ -982,15 +957,72 @@ export function FlightSearchHome() {
                     )}
                   </View>
 
-                  {hasSearched ? (
+                  </>
+                  ) : null}
+
+                  {!detailFlight && hasSearched ? (
                     <>
+                      <View style={styles.resultsTopBar}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Voltar à busca"
+                          onPress={() => {
+                            setHasSearched(false);
+                            setSelectedDepartureFlightId(null);
+                          }}
+                          style={({ pressed }) => [
+                            styles.resultsBackButton,
+                            pressed && styles.pressed,
+                          ]}>
+                          <AppSymbol
+                            name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
+                            color={colors.navy}
+                            size={21}
+                          />
+                        </Pressable>
+                        <View style={styles.resultsRouteTitle}>
+                          <Text numberOfLines={1} style={styles.resultsRouteText}>
+                            {origin?.city ?? origin?.code ?? 'Origem'} →{' '}
+                            {destination?.city ?? destination?.code ?? 'Destino'}
+                          </Text>
+                          <Text numberOfLines={1} style={styles.resultsRouteMeta}>
+                            {formatDepartureDate(departureDate)} · {passengerCount}{' '}
+                            {passengerCount === 1 ? 'passageiro' : 'passageiros'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.sortTabs}>
+                        {([
+                          ['best', 'Melhor'],
+                          ['cheapest', 'Mais barato'],
+                          ['fastest', 'Mais rápido'],
+                        ] as [FlightSortMode, string][]).map(([mode, label]) => (
+                          <Pressable
+                            key={mode}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: flightSortMode === mode }}
+                            onPress={() => setFlightSortMode(mode)}
+                            style={[
+                              styles.sortTab,
+                              flightSortMode === mode && styles.sortTabSelected,
+                            ]}>
+                            <Text
+                              style={[
+                                styles.sortTabText,
+                                flightSortMode === mode && styles.sortTabTextSelected,
+                              ]}>
+                              {label}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+
                       <View style={styles.resultsHeader}>
                         <View>
                           <Text style={styles.resultsTitle}>Resultados da busca</Text>
                           <Text style={styles.resultsSubtitle}>
-                            {tripType === 'roundTrip'
-                              ? `${flights.length} ida · ${returnFlights.length} volta`
-                              : `${flights.length} ${flights.length === 1 ? 'opção encontrada' : 'opções encontradas'}`}
+                            {`${flights.length} ${flights.length === 1 ? 'opção encontrada' : 'opções encontradas'}`}
                           </Text>
                         </View>
                         <View style={[styles.aircraftIconBadge, styles.resultsPlaneBadge]}>
@@ -1006,21 +1038,16 @@ export function FlightSearchHome() {
                       ) : !searchError ? (
                         <>
                           <FlightResultsGroup
-                            flights={flights}
+                            flights={sortedDepartureFlights}
                             date={departureDate}
-                            onSelect={setSelectedDepartureFlightId}
+                            onSelect={(flightId) => {
+                              setSelectedDepartureFlightId(flightId);
+                              setDetailFlightId(flightId);
+                            }}
+                            passengerCount={passengerCount}
                             selectedFlightId={selectedDepartureFlightId}
-                            title={tripType === 'roundTrip' ? 'Ida' : 'Voos de ida'}
+                            title="Partidas"
                           />
-                          {tripType === 'roundTrip' ? (
-                            <FlightResultsGroup
-                              flights={returnFlights}
-                              date={returnDate}
-                              onSelect={setSelectedReturnFlightId}
-                              selectedFlightId={selectedReturnFlightId}
-                              title="Volta"
-                            />
-                          ) : null}
                         </>
                       ) : null}
                     </>
@@ -1029,7 +1056,7 @@ export function FlightSearchHome() {
               </ScrollView>
               )}
 
-              <SafeAreaView edges={['bottom']} style={styles.bottomSafeArea}>
+              {detailFlightId ? null : <SafeAreaView edges={['bottom']} style={styles.bottomSafeArea}>
                 <View style={styles.bottomBar}>
                   <BottomTab
                     active={activeTab === 'home'}
@@ -1058,7 +1085,7 @@ export function FlightSearchHome() {
                     onPress={() => showTab('profile')}
                   />
                 </View>
-              </SafeAreaView>
+              </SafeAreaView>}
             </>
           )}
         </View>
@@ -1073,14 +1100,8 @@ export function FlightSearchHome() {
           <View style={styles.calendarModalPanel}>
             <View style={styles.modalHeading}>
               <View>
-                <Text style={styles.modalTitle}>
-                  {calendarTarget === 'return' ? 'Data de volta' : 'Data de partida'}
-                </Text>
-                <Text style={styles.modalSubtitle}>
-                  {calendarTarget === 'return'
-                    ? 'A volta deve ser na data da partida ou depois'
-                    : 'Escolha quando quer viajar'}
-                </Text>
+                <Text style={styles.modalTitle}>Data de partida</Text>
+                <Text style={styles.modalSubtitle}>Escolha quando quer viajar</Text>
               </View>
               <Pressable
                 accessibilityRole="button"
@@ -1180,9 +1201,7 @@ export function FlightSearchHome() {
 
             <View style={styles.calendarFooter}>
               <View style={styles.calendarSelection}>
-                <Text style={styles.calendarSelectionLabel}>
-                  {calendarTarget === 'return' ? 'VOLTA SELECIONADA' : 'PARTIDA SELECIONADA'}
-                </Text>
+                <Text style={styles.calendarSelectionLabel}>PARTIDA SELECIONADA</Text>
                 <Text style={styles.calendarSelectionDate}>
                   {formatDepartureDate(calendarSelectedDate)}
                 </Text>
@@ -1369,6 +1388,557 @@ export function FlightSearchHome() {
   );
 }
 
+function FlightDetails({
+  flight,
+  passengerCount,
+  profile,
+  onBack,
+  onCompleteReceipt,
+  onPaymentSuccess,
+}: {
+  flight: FlightResult;
+  passengerCount: number;
+  profile: ProfileDetails | null;
+  onBack: () => void;
+  onCompleteReceipt: (bookingCode: string) => void;
+  onPaymentSuccess: (paymentMethod: 'credit' | 'debit' | 'pix' | 'miles', bookingCode: string) => void;
+}) {
+  type PaymentMethod = 'credit' | 'debit' | 'pix' | 'miles';
+  const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [paymentRequested, setPaymentRequested] = useState(false);
+  const [paymentStage, setPaymentStage] = useState<'method' | 'processing' | 'success'>('method');
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [receiptMethod, setReceiptMethod] = useState<PaymentMethod>('credit');
+  const [receiptCode, setReceiptCode] = useState('');
+  const [milesBalance, setMilesBalance] = useState(1637);
+  const [passengerPhotoFailed, setPassengerPhotoFailed] = useState(false);
+  const passengerName =
+    `${profile?.firstName ?? ''} ${profile?.lastName ?? ''}`.trim() || 'Passageiro Volares';
+  const passengerPhotoSource =
+    profile?.avatarUrl && !passengerPhotoFailed
+      ? { uri: profile.avatarUrl }
+      : BrandAssets.profilePlaceholder;
+  const quote = calculateFlightQuote(flight, passengerCount);
+  const taxes = quote.taxes;
+  const total = quote.total;
+
+  return (
+    <>
+    <View style={styles.flightDetailsContent}>
+      <View style={styles.detailsHeader}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Voltar aos resultados"
+          onPress={onBack}
+          style={({ pressed }) => [styles.detailsBackButton, pressed && styles.pressed]}>
+          <AppSymbol
+            name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
+            color={colors.navy}
+            size={21}
+          />
+        </Pressable>
+        <Text style={styles.detailsTitle}>Detalhes do voo</Text>
+        <View style={styles.detailsHeaderSpacer} />
+      </View>
+
+      <View style={styles.detailsHeroCard}>
+        <View style={styles.detailsHeroTop}>
+          <View style={styles.detailsPilotRow}>
+            <View style={styles.detailsPilotAvatarFrame}>
+              {flight.pilotPhotoUrl ? (
+                <Image
+                  accessibilityLabel={flight.pilotName ? `Piloto ${flight.pilotName}` : 'Piloto Volares'}
+                  contentFit="cover"
+                  source={{ uri: flight.pilotPhotoUrl }}
+                  style={styles.detailsPilotAvatar}
+                />
+              ) : (
+                <Image
+                  accessibilityLabel="Piloto Volares"
+                  contentFit="cover"
+                  source={BrandAssets.pilotPlaceholder}
+                  style={styles.detailsPilotAvatar}
+                />
+              )}
+            </View>
+            <View>
+              <Text numberOfLines={1} style={styles.detailsPilotName}>
+                {flight.pilotName ?? 'Piloto Volares'}
+              </Text>
+              <Text numberOfLines={1} style={styles.detailsAirlineName}>
+                {flight.airlineName ?? 'Volares'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.detailsPassengerRow}>
+            <View style={styles.detailsPassengerAvatarFrame}>
+              <Image
+                accessibilityLabel={`Passageiro ${passengerName}`}
+                contentFit="cover"
+                onError={() => setPassengerPhotoFailed(true)}
+                source={passengerPhotoSource}
+                style={styles.detailsPassengerAvatar}
+              />
+            </View>
+            <View style={styles.detailsPassengerCopy}>
+              <Text numberOfLines={1} style={styles.detailsPassengerName}>
+                {passengerName}
+              </Text>
+              <Text style={styles.detailsPassengerLabel}>Passageiro</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.detailsRouteRow}>
+          <View style={styles.detailsEndpoint}>
+            <Text style={styles.detailsAirportCode}>{flight.originCode ?? '—'}</Text>
+            <Text numberOfLines={1} style={styles.detailsCity}>{flight.originCity ?? 'Origem'}</Text>
+            <Text style={styles.detailsTime}>{formatTime(flight.departureTime)}</Text>
+          </View>
+          <View style={styles.detailsHeroDuration}>
+            <Text style={styles.detailsDurationText}>{formatDuration(flight.duration)}</Text>
+            <View style={styles.detailsDurationLine}>
+              <View style={styles.detailsDurationDot} />
+              <View style={styles.detailsDurationDash} />
+              <View style={styles.detailsHeroPlane}>
+                <PaperPlaneIcon size={17} />
+              </View>
+              <View style={styles.detailsDurationDash} />
+              <View style={styles.detailsDurationDot} />
+            </View>
+          </View>
+          <View style={[styles.detailsEndpoint, styles.detailsEndpointEnd]}>
+            <Text style={styles.detailsAirportCode}>{flight.destinationCode ?? '—'}</Text>
+            <Text numberOfLines={1} style={styles.detailsCity}>{flight.destinationCity ?? 'Destino'}</Text>
+            <Text style={styles.detailsTime}>{formatTime(flight.arrivalTime)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.detailsDateChip}>
+          <AppSymbol
+            name={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }}
+            color={colors.white}
+            size={16}
+          />
+          <Text style={styles.detailsDateText}>
+            {new Date(flight.departureTime).toLocaleDateString('pt-BR', {
+              weekday: 'short',
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            })}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={styles.detailsSectionTitle}>Detalhes da viagem</Text>
+      <View style={styles.detailsTimelineCard}>
+        <View style={styles.detailsTimelineItem}>
+          <View style={styles.detailsTimelineDot} />
+          <View style={styles.detailsTimelineCopy}>
+            <Text style={styles.detailsTimelineTime}>{formatTime(flight.departureTime)}</Text>
+            <Text style={styles.detailsTimelineCity}>{flight.originCity ?? 'Origem'}</Text>
+            <Text style={styles.detailsTimelineHint}>Partida privada</Text>
+          </View>
+        </View>
+        <View style={styles.detailsTimelineAircraft}>
+          <View style={styles.detailsTimelineIcon}>
+            <PaperPlaneIcon size={18} />
+          </View>
+          <View>
+            <Text style={styles.detailsTimelineDuration}>
+              {formatDuration(flight.duration)} · Direto
+            </Text>
+            <Text style={styles.detailsTimelineHint}>
+              {flight.aircraftModel ?? 'Aeronave'}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.detailsTimelineItem}>
+          <View style={[styles.detailsTimelineDot, styles.detailsTimelineDotArrival]} />
+          <View style={styles.detailsTimelineCopy}>
+            <Text style={styles.detailsTimelineTime}>{formatTime(flight.arrivalTime)}</Text>
+            <Text style={styles.detailsTimelineCity}>{flight.destinationCity ?? 'Destino'}</Text>
+            <Text style={styles.detailsTimelineHint}>Chegada privada</Text>
+          </View>
+        </View>
+      </View>
+
+      <Text style={styles.detailsSectionTitle}>Informações do voo</Text>
+      <View style={styles.detailsInfoCard}>
+        <View style={styles.detailsInfoRow}>
+          <AppSymbol
+            name={{ ios: 'person.2', android: 'groups', web: 'groups' }}
+            color={colors.blue}
+            size={20}
+          />
+          <Text style={styles.detailsInfoLabel}>Passageiros</Text>
+          <Text style={styles.detailsInfoValue}>{passengerCount}</Text>
+        </View>
+        <View style={styles.detailsInfoDivider} />
+        <View style={styles.detailsInfoRow}>
+          <AppSymbol
+            name={{ ios: 'airplane', android: 'flight', web: 'flight' }}
+            color={colors.blue}
+            size={20}
+          />
+          <Text style={styles.detailsInfoLabel}>Aeronave</Text>
+          <Text numberOfLines={1} style={styles.detailsInfoValue}>{flight.aircraftModel ?? 'Aeronave'}</Text>
+        </View>
+      </View>
+
+      <View style={styles.detailsPriceCard}>
+        <Text style={styles.detailsPriceTitle}>Resumo do valor</Text>
+        <View style={styles.detailsPriceRow}>
+          <Text style={styles.detailsPriceLabel}>Aeronave completa</Text>
+          <Text style={styles.detailsPriceValue}>{formatPrice(quote.charterBase * 0.82)}</Text>
+        </View>
+        <View style={styles.detailsPriceRow}>
+          <Text style={styles.detailsPriceLabel}>Divisão base por passageiro</Text>
+          <Text style={styles.detailsPriceValue}>{formatPrice(quote.basePerPassenger)}</Text>
+        </View>
+        {quote.discount > 0 ? (
+          <View style={styles.detailsPriceRow}>
+            <Text style={styles.detailsPriceLabel}>
+              Desconto por compartilhar · {Math.round(quote.sharingDiscountRate * 100)}%
+            </Text>
+            <Text style={styles.detailsSavingsValue}>− {formatPrice(quote.discount)}</Text>
+          </View>
+        ) : null}
+        <View style={styles.detailsPriceRow}>
+          <Text style={styles.detailsPriceLabel}>Valor por passageiro</Text>
+          <Text style={styles.detailsPriceValue}>{formatPrice(quote.perPassenger)}</Text>
+        </View>
+        <View style={styles.detailsPriceRow}>
+          <Text style={styles.detailsPriceLabel}>Taxas e tarifas (8%)</Text>
+          <Text style={styles.detailsPriceValue}>{formatPrice(taxes)}</Text>
+        </View>
+        <View style={styles.detailsPriceDivider} />
+        <View style={styles.detailsPriceRow}>
+          <Text style={styles.detailsPriceTotalLabel}>Total</Text>
+          <Text style={styles.detailsPriceTotal}>{formatPrice(total)}</Text>
+        </View>
+      </View>
+
+      <View style={styles.detailsPayBar}>
+        <View>
+          <Text style={styles.detailsPayLabel}>Valor total</Text>
+          <Text style={styles.detailsPayValue}>{formatPrice(total)}</Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            setSelectedPaymentMethod(null);
+            setPaymentStage('method');
+            setPaymentRequested(false);
+            setPaymentSheetOpen(true);
+          }}
+          style={({ pressed }) => [styles.detailsPayButton, pressed && styles.pressed]}>
+          <Text style={styles.detailsPayButtonText}>
+            {paymentRequested ? 'Voo solicitado' : 'Voar agora'}
+          </Text>
+          <AppSymbol
+            name={{ ios: 'arrow.right', android: 'arrow_forward', web: 'arrow_forward' }}
+            color={colors.white}
+            size={18}
+          />
+        </Pressable>
+      </View>
+    </View>
+    <Modal
+      animationType="slide"
+      onRequestClose={() => setPaymentSheetOpen(false)}
+      transparent
+      visible={paymentSheetOpen}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.paymentSheet}>
+          <View style={styles.paymentHandle} />
+          {paymentStage === 'method' ? (
+            <>
+              <View style={styles.paymentSheetHeader}>
+                <View>
+                  <Text style={styles.paymentSheetTitle}>Forma de pagamento</Text>
+                  <Text style={styles.paymentSheetSubtitle}>
+                    Escolha como você quer pagar
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Fechar pagamento"
+                  onPress={() => setPaymentSheetOpen(false)}
+                  style={styles.closeButton}>
+                  <Text style={styles.closeButtonText}>×</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.paymentTotalCard}>
+                <Text style={styles.paymentTotalLabel}>Total do voo</Text>
+                <Text style={styles.paymentTotalValue}>{formatPrice(total)}</Text>
+              </View>
+
+              {([
+                ['credit', 'Cartão de crédito', 'Parcelamento disponível', 'creditcard'],
+                ['debit', 'Cartão de débito', 'Débito à vista', 'creditcard'],
+                ['pix', 'Pix', 'Pagamento instantâneo', 'qrcode'],
+                ['miles', 'Milhas Volares', `${formatPrice(milesBalance)} disponíveis`, 'loyalty'],
+              ] as const).map(([method, title, subtitle, icon]) => {
+                const insufficientMiles =
+                  method === 'miles' && milesBalance < total;
+                return (
+                  <Pressable
+                    key={method}
+                    accessibilityRole="button"
+                    accessibilityState={{
+                      selected: selectedPaymentMethod === method,
+                      disabled: insufficientMiles,
+                    }}
+                    disabled={insufficientMiles}
+                    onPress={() => setSelectedPaymentMethod(method)}
+                    style={({ pressed }) => [
+                      styles.paymentMethod,
+                      selectedPaymentMethod === method && styles.paymentMethodSelected,
+                      insufficientMiles && styles.paymentMethodDisabled,
+                      pressed && styles.pressed,
+                    ]}>
+                    <View style={styles.paymentMethodIcon}>
+                      <AppSymbol
+                        name={{
+                          ios: method === 'miles' ? 'star.circle' : icon,
+                          android: method === 'miles' ? 'loyalty' : icon === 'qrcode' ? 'qr_code_2' : 'credit_card',
+                          web: method === 'miles' ? 'loyalty' : icon === 'qrcode' ? 'qr_code_2' : 'credit_card',
+                        }}
+                        color={selectedPaymentMethod === method ? colors.white : colors.blue}
+                        size={21}
+                      />
+                    </View>
+                    <View style={styles.paymentMethodCopy}>
+                      <Text style={styles.paymentMethodTitle}>{title}</Text>
+                      <Text style={styles.paymentMethodSubtitle}>
+                        {insufficientMiles ? 'Saldo insuficiente para este voo' : subtitle}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.paymentRadio,
+                        selectedPaymentMethod === method && styles.paymentRadioSelected,
+                      ]}>
+                      {selectedPaymentMethod === method ? (
+                        <View style={styles.paymentRadioInner} />
+                      ) : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: selectedPaymentMethod === null }}
+                disabled={selectedPaymentMethod === null}
+                onPress={() => {
+                  if (!selectedPaymentMethod) return;
+                  setPaymentStage('processing');
+                  setTimeout(() => {
+                    if (selectedPaymentMethod === 'miles') {
+                      setMilesBalance((balance) => Math.max(0, balance - total));
+                    }
+                    setPaymentRequested(true);
+                    setReceiptMethod(selectedPaymentMethod);
+                    const bookingCode = `VLR${String(Date.now()).slice(-7)}${selectedPaymentMethod === 'miles' ? 'M' : 'P'}`;
+                    setReceiptCode(bookingCode);
+                    onPaymentSuccess(selectedPaymentMethod, bookingCode);
+                    setPaymentStage('success');
+                    setPaymentSheetOpen(false);
+                    setReceiptOpen(true);
+                  }, 900);
+                }}
+                style={({ pressed }) => [
+                  styles.paymentContinueButton,
+                  selectedPaymentMethod === null && styles.paymentContinueDisabled,
+                  pressed && styles.pressed,
+                ]}>
+                <Text style={styles.paymentContinueText}>Continuar</Text>
+                <AppSymbol
+                  name={{ ios: 'arrow.right', android: 'arrow_forward', web: 'arrow_forward' }}
+                  color={colors.white}
+                  size={18}
+                />
+              </Pressable>
+            </>
+          ) : paymentStage === 'processing' ? (
+            <View style={styles.paymentProcessing}>
+              <ActivityIndicator color={colors.blue} size="large" />
+              <Text style={styles.paymentProcessingTitle}>Processando pagamento...</Text>
+              <Text style={styles.paymentProcessingSubtitle}>
+                Não feche esta tela
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      </View>
+    </Modal>
+    <Modal
+      animationType="slide"
+      onRequestClose={() => setReceiptOpen(false)}
+      transparent
+      visible={receiptOpen}>
+      <View style={styles.receiptBackdrop}>
+        <View style={styles.receiptSheet}>
+          <View style={styles.receiptHandle} />
+          <View style={styles.receiptHeader}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Fechar comprovante"
+              onPress={() => setReceiptOpen(false)}
+              style={styles.detailsBackButton}>
+              <AppSymbol
+                name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
+                color={colors.navy}
+                size={21}
+              />
+            </Pressable>
+            <Text style={styles.receiptTitle}>Comprovante de voo</Text>
+            <View style={styles.detailsHeaderSpacer} />
+          </View>
+
+          <View style={styles.receiptStatusIcon}>
+            <AppSymbol
+              name={{ ios: 'checkmark', android: 'check', web: 'check' }}
+              color={colors.white}
+              size={30}
+            />
+          </View>
+          <Text style={styles.receiptStatusTitle}>Pagamento aprovado</Text>
+          <Text style={styles.receiptStatusSubtitle}>Sua reserva foi confirmada</Text>
+
+          <View style={styles.receiptHeroCard}>
+            <View style={styles.receiptPeopleRow}>
+              <View style={styles.receiptPilotRow}>
+                <View style={styles.detailsPilotAvatarFrame}>
+                  {flight.pilotPhotoUrl ? (
+                    <Image
+                      accessibilityLabel={flight.pilotName ? `Piloto ${flight.pilotName}` : 'Piloto Volares'}
+                      contentFit="cover"
+                      source={{ uri: flight.pilotPhotoUrl }}
+                      style={styles.detailsPilotAvatar}
+                    />
+                  ) : (
+                    <Image
+                      accessibilityLabel="Piloto Volares"
+                      contentFit="cover"
+                      source={BrandAssets.pilotPlaceholder}
+                      style={styles.detailsPilotAvatar}
+                    />
+                  )}
+                </View>
+                <View>
+                  <Text style={styles.receiptPersonName}>
+                    {flight.pilotName ?? 'Piloto Volares'}
+                  </Text>
+                  <Text style={styles.receiptPersonRole}>Piloto</Text>
+                </View>
+              </View>
+              <View style={styles.receiptPassengerRow}>
+                <View style={styles.detailsPassengerAvatarFrame}>
+                  <Image
+                    accessibilityLabel={`Passageiro ${passengerName}`}
+                    contentFit="cover"
+                    source={passengerPhotoSource}
+                    style={styles.detailsPassengerAvatar}
+                  />
+                </View>
+                <View>
+                  <Text numberOfLines={1} style={styles.receiptPersonName}>
+                    {passengerName}
+                  </Text>
+                  <Text style={styles.receiptPersonRole}>Passageiro</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.receiptRouteRow}>
+              <View>
+                <Text style={styles.receiptAirportCode}>{flight.originCode ?? '—'}</Text>
+                <Text numberOfLines={1} style={styles.receiptCity}>{flight.originCity ?? 'Origem'}</Text>
+                <Text style={styles.receiptTime}>{formatTime(flight.departureTime)}</Text>
+              </View>
+              <View style={styles.receiptDuration}>
+                <Text style={styles.receiptDurationText}>{formatDuration(flight.duration)}</Text>
+                <View style={styles.receiptDurationLine}>
+                  <View style={styles.receiptDurationDot} />
+                  <View style={styles.receiptDurationDash} />
+                  <View style={styles.receiptDurationPlane}>
+                    <PaperPlaneIcon size={15} />
+                  </View>
+                  <View style={styles.receiptDurationDash} />
+                  <View style={styles.receiptDurationDot} />
+                </View>
+              </View>
+              <View style={styles.receiptEndpointRight}>
+                <Text style={styles.receiptAirportCode}>{flight.destinationCode ?? '—'}</Text>
+                <Text numberOfLines={1} style={styles.receiptCity}>{flight.destinationCity ?? 'Destino'}</Text>
+                <Text style={styles.receiptTime}>{formatTime(flight.arrivalTime)}</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.receiptInfoCard}>
+            <View style={styles.receiptInfoRow}>
+              <Text style={styles.receiptInfoLabel}>Forma de pagamento</Text>
+              <Text style={styles.receiptInfoValue}>
+                {receiptMethod === 'credit'
+                  ? 'Cartão de crédito'
+                  : receiptMethod === 'debit'
+                    ? 'Cartão de débito'
+                    : receiptMethod === 'pix'
+                      ? 'Pix'
+                      : 'Milhas Volares'}
+              </Text>
+            </View>
+            <View style={styles.receiptInfoDivider} />
+            <View style={styles.receiptInfoRow}>
+              <Text style={styles.receiptInfoLabel}>Localizador</Text>
+              <Text style={styles.receiptInfoValue}>{receiptCode}</Text>
+            </View>
+            <View style={styles.receiptInfoDivider} />
+            <View style={styles.receiptInfoRow}>
+              <Text style={styles.receiptInfoLabel}>Aeronave</Text>
+              <Text numberOfLines={1} style={styles.receiptInfoValue}>
+                {flight.aircraftModel ?? 'Aeronave'}
+              </Text>
+            </View>
+            <View style={styles.receiptInfoDivider} />
+            <View style={styles.receiptInfoRow}>
+              <Text style={styles.receiptInfoLabel}>Passageiros</Text>
+              <Text style={styles.receiptInfoValue}>{passengerCount}</Text>
+            </View>
+            <View style={styles.receiptInfoDivider} />
+            <View style={styles.receiptInfoRow}>
+              <Text style={styles.receiptInfoLabel}>Total pago</Text>
+              <Text style={styles.receiptTotalValue}>{formatPrice(total)}</Text>
+            </View>
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              setReceiptOpen(false);
+              onCompleteReceipt(receiptCode);
+            }}
+            style={({ pressed }) => [
+              styles.receiptDoneButton,
+              pressed && styles.pressed,
+            ]}>
+            <Text style={styles.receiptDoneText}>Concluir</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+    </>
+  );
+}
+
 function AirportField({
   label,
   airport,
@@ -1447,12 +2017,14 @@ function FlightResultsGroup({
   title,
   selectedFlightId,
   onSelect,
+  passengerCount,
 }: {
   flights: FlightResult[];
   date: string;
   title: string;
   selectedFlightId: string | null;
   onSelect: (flightId: string) => void;
+  passengerCount: number;
 }) {
   return (
     <View style={styles.resultsLegSection}>
@@ -1467,6 +2039,7 @@ function FlightResultsGroup({
             flight={flight}
             onSelect={() => onSelect(flight._id)}
             selected={selectedFlightId === flight._id}
+            passengerCount={passengerCount}
           />
         ))
       ) : (
@@ -1483,29 +2056,38 @@ function FlightCard({
   flight,
   onSelect,
   selected,
+  passengerCount,
 }: {
   flight: FlightResult;
   onSelect: () => void;
   selected: boolean;
+  passengerCount: number;
 }) {
+  const pilotPhotoSource = flight.pilotPhotoUrl
+    ? { uri: flight.pilotPhotoUrl }
+    : BrandAssets.pilotPlaceholder;
+  const quote = calculateFlightQuote(flight, passengerCount);
+
   return (
     <View style={[styles.flightCard, selected && styles.flightCardSelected]}>
       <View style={styles.flightCardTop}>
         <View style={styles.flightCarrier}>
-          <View style={styles.carrierIcon}>
-            <PaperPlaneIcon size={14} />
+          <View style={styles.pilotAvatarFrame}>
+            <Image
+              accessibilityLabel={flight.pilotName ? `Piloto ${flight.pilotName}` : 'Piloto Volares'}
+              contentFit="cover"
+              source={pilotPhotoSource}
+              style={styles.pilotAvatar}
+            />
           </View>
           <View style={styles.flightCarrierCopy}>
             <Text numberOfLines={1} style={styles.carrierName}>
-              {flight.airlineName ?? 'Voo particular'}
+              {flight.pilotName?.trim() ? `Piloto ${flight.pilotName}` : 'Piloto Volares'}
             </Text>
             <Text numberOfLines={1} style={styles.flightAircraftDetail}>
               {flight.aircraftModel ?? 'Aeronave'} · {flight.availableSeats} assentos disponíveis
             </Text>
           </View>
-        </View>
-        <View style={styles.statusBadge}>
-          <Text style={styles.statusText}>{getFlightStatusLabel(flight.status)}</Text>
         </View>
       </View>
 
@@ -1523,7 +2105,7 @@ function FlightCard({
             <View style={styles.durationDot} />
             <View style={styles.durationDash} />
             <View style={styles.durationPlaneBadge}>
-              <PaperPlaneIcon size={11} />
+                <PaperPlaneIcon size={14} />
             </View>
             <View style={styles.durationDash} />
             <View style={styles.durationDot} />
@@ -1541,8 +2123,15 @@ function FlightCard({
       <View style={styles.flightDivider} />
       <View style={styles.flightBottom}>
         <View style={styles.flightPriceBlock}>
-          <Text style={styles.flightPriceLabel}>A partir de</Text>
-          <Text style={styles.flightPrice}>{formatPrice(flight.price)}</Text>
+          <Text style={styles.flightPriceLabel}>
+            {passengerCount > 1 ? 'Por passageiro, em média' : 'Valor por passageiro'}
+          </Text>
+          <Text style={styles.flightPrice}>{formatPrice(quote.perPassenger)}</Text>
+          {quote.discount > 0 ? (
+            <Text style={styles.flightSavingsText}>
+              Economia compartilhada: {formatPrice(quote.discount)}
+            </Text>
+          ) : null}
         </View>
         <Pressable
           accessibilityRole="button"
@@ -1558,7 +2147,7 @@ function FlightCard({
               styles.selectFlightButtonText,
               selected && styles.selectFlightButtonTextSelected,
             ]}>
-            {selected ? 'Selecionado' : 'Selecionar'}
+            Voar
           </Text>
           <AppSymbol
             name={
@@ -1691,35 +2280,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 16,
     paddingBottom: 14,
-  },
-  tripTypeToggle: {
-    flexDirection: 'row',
-    gap: 8,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    padding: 4,
-    marginBottom: 12,
-  },
-  tripTypeOption: {
-    flex: 1,
-    minHeight: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 11,
-    paddingHorizontal: 8,
-  },
-  tripTypeOptionSelected: {
-    borderWidth: 1,
-    borderColor: colors.blue,
-    backgroundColor: '#EAF6FC',
-  },
-  tripTypeText: {
-    color: colors.muted,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  tripTypeTextSelected: {
-    color: colors.blue,
   },
   routeFields: {
     flexDirection: 'column',
@@ -1973,6 +2533,62 @@ const styles = StyleSheet.create({
     fontSize: 9,
     marginTop: 2,
   },
+  resultsTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingTop: 4,
+    marginBottom: 14,
+  },
+  resultsBackButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+  },
+  resultsRouteTitle: {
+    flex: 1,
+    minWidth: 0,
+  },
+  resultsRouteText: {
+    color: colors.navy,
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  resultsRouteMeta: {
+    color: colors.muted,
+    fontSize: 11,
+    marginTop: 3,
+  },
+  sortTabs: {
+    flexDirection: 'row',
+    gap: 7,
+    marginBottom: 12,
+  },
+  sortTab: {
+    flex: 1,
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: colors.white,
+  },
+  sortTabSelected: {
+    borderColor: colors.blue,
+    backgroundColor: '#EAF6FC',
+  },
+  sortTabText: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  sortTabTextSelected: {
+    color: colors.blue,
+  },
   resultsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2034,13 +2650,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  carrierIcon: {
-    width: 30,
-    height: 30,
+  pilotAvatarFrame: {
+    width: 42,
+    height: 42,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.blue,
-    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.blue,
+    borderRadius: 21,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+  },
+  pilotAvatar: {
+    width: '100%',
+    height: '100%',
   },
   carrierName: {
     color: colors.text,
@@ -2050,17 +2673,6 @@ const styles = StyleSheet.create({
   flightCarrierCopy: {
     flex: 1,
     minWidth: 0,
-  },
-  statusBadge: {
-    borderRadius: 12,
-    backgroundColor: '#EEF8F3',
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-  },
-  statusText: {
-    color: '#287A4B',
-    fontSize: 10,
-    fontWeight: '700',
   },
   flightRoute: {
     flexDirection: 'row',
@@ -2147,6 +2759,12 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginBottom: 2,
   },
+  flightSavingsText: {
+    color: '#287A4B',
+    fontSize: 9,
+    fontWeight: '700',
+    marginTop: 2,
+  },
   selectFlightButton: {
     minHeight: 44,
     minWidth: 116,
@@ -2170,6 +2788,717 @@ const styles = StyleSheet.create({
   },
   selectFlightButtonTextSelected: {
     color: colors.blue,
+  },
+  flightDetailsContent: {
+    width: '100%',
+  },
+  detailsHeader: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  detailsBackButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailsHeaderSpacer: {
+    width: 40,
+  },
+  detailsTitle: {
+    color: colors.navy,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  detailsHeroCard: {
+    borderRadius: 24,
+    backgroundColor: colors.blue,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 18,
+  },
+  detailsHeroTop: {
+    alignItems: 'flex-end',
+  },
+  detailsPilotRow: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  detailsPilotAvatarFrame: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 2,
+    borderColor: colors.white,
+    overflow: 'hidden',
+  },
+  detailsPilotAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  detailsPilotName: {
+    maxWidth: 120,
+    color: colors.white,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  detailsAirlineName: {
+    color: '#DCEEFF',
+    fontSize: 9,
+    marginTop: 2,
+  },
+  detailsPassengerRow: {
+    width: 150,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  detailsPassengerAvatarFrame: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 2,
+    borderColor: colors.white,
+    backgroundColor: colors.white,
+    overflow: 'hidden',
+  },
+  detailsPassengerAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  detailsPassengerCopy: {
+    flex: 1,
+  },
+  detailsPassengerName: {
+    color: colors.white,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  detailsPassengerLabel: {
+    color: '#DCEEFF',
+    fontSize: 9,
+    marginTop: 2,
+  },
+  detailsRouteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 24,
+  },
+  detailsEndpoint: {
+    minWidth: 68,
+  },
+  detailsEndpointEnd: {
+    alignItems: 'flex-end',
+  },
+  detailsAirportCode: {
+    color: colors.white,
+    fontSize: 30,
+    fontWeight: '900',
+  },
+  detailsCity: {
+    maxWidth: 80,
+    color: '#EAF4FF',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  detailsTime: {
+    color: colors.white,
+    fontSize: 15,
+    fontWeight: '800',
+    marginTop: 5,
+  },
+  detailsHeroDuration: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  detailsDurationText: {
+    color: '#EAF4FF',
+    fontSize: 10,
+    marginBottom: 6,
+  },
+  detailsDurationLine: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  detailsDurationDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.white,
+  },
+  detailsDurationDash: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#A9CEFA',
+  },
+  detailsHeroPlane: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailsDateChip: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    marginTop: 18,
+    paddingHorizontal: 12,
+  },
+  detailsDateText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  detailsSectionTitle: {
+    color: colors.navy,
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 22,
+    marginBottom: 8,
+  },
+  detailsTimelineCard: {
+    borderRadius: 16,
+    backgroundColor: colors.white,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  detailsTimelineItem: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  detailsTimelineDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: colors.blue,
+    marginTop: 5,
+  },
+  detailsTimelineDotArrival: {
+    backgroundColor: '#35C2A1',
+  },
+  detailsTimelineCopy: {
+    flex: 1,
+  },
+  detailsTimelineTime: {
+    color: colors.navy,
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  detailsTimelineCity: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  detailsTimelineHint: {
+    color: colors.muted,
+    fontSize: 10,
+    marginTop: 3,
+  },
+  detailsTimelineAircraft: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
+    marginLeft: 4,
+    paddingLeft: 16,
+  },
+  detailsTimelineIcon: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailsTimelineDuration: {
+    color: colors.blue,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  detailsInfoCard: {
+    borderRadius: 16,
+    backgroundColor: colors.white,
+    paddingHorizontal: 16,
+  },
+  detailsInfoRow: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  detailsInfoLabel: {
+    flex: 1,
+    color: colors.muted,
+    fontSize: 12,
+  },
+  detailsInfoValue: {
+    maxWidth: 180,
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  detailsInfoDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+  },
+  detailsPriceCard: {
+    borderRadius: 16,
+    backgroundColor: colors.white,
+    marginTop: 16,
+    padding: 16,
+  },
+  detailsPriceTitle: {
+    color: colors.navy,
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  detailsPriceRow: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  detailsPriceLabel: {
+    color: colors.muted,
+    fontSize: 11,
+  },
+  detailsPriceValue: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  detailsSavingsValue: {
+    color: '#287A4B',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  detailsPriceDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginVertical: 8,
+  },
+  detailsPriceTotalLabel: {
+    color: colors.navy,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  detailsPriceTotal: {
+    color: colors.blue,
+    fontSize: 19,
+    fontWeight: '900',
+  },
+  detailsPayBar: {
+    minHeight: 82,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 16,
+  },
+  detailsPayLabel: {
+    color: colors.muted,
+    fontSize: 10,
+  },
+  detailsPayValue: {
+    color: colors.navy,
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  detailsPayButton: {
+    minHeight: 52,
+    minWidth: 150,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 14,
+    backgroundColor: colors.blue,
+    paddingHorizontal: 14,
+  },
+  detailsPayButtonText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  paymentSheet: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 18,
+  },
+  paymentHandle: {
+    width: 42,
+    height: 4,
+    alignSelf: 'center',
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    marginBottom: 12,
+  },
+  paymentSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  paymentSheetTitle: {
+    color: colors.navy,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  paymentSheetSubtitle: {
+    color: colors.muted,
+    fontSize: 11,
+    marginTop: 3,
+  },
+  paymentTotalCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 14,
+    backgroundColor: '#EFF6FF',
+    marginTop: 16,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  paymentTotalLabel: {
+    color: colors.muted,
+    fontSize: 12,
+  },
+  paymentTotalValue: {
+    color: colors.navy,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  paymentMethodDisabled: {
+    opacity: 0.55,
+  },
+  paymentMethod: {
+    minHeight: 68,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    marginTop: 8,
+    paddingHorizontal: 12,
+  },
+  paymentMethodSelected: {
+    borderColor: colors.blue,
+    backgroundColor: '#F7FBFF',
+  },
+  paymentMethodIcon: {
+    width: 42,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: '#EFF6FF',
+  },
+  paymentMethodCopy: {
+    flex: 1,
+  },
+  paymentMethodTitle: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  paymentMethodSubtitle: {
+    color: colors.muted,
+    fontSize: 10,
+    marginTop: 3,
+  },
+  paymentRadio: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 10,
+  },
+  paymentRadioSelected: {
+    borderColor: colors.blue,
+  },
+  paymentRadioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.blue,
+  },
+  paymentContinueButton: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 14,
+    backgroundColor: colors.blue,
+    marginTop: 14,
+  },
+  paymentContinueDisabled: {
+    opacity: 0.45,
+  },
+  paymentContinueText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  paymentProcessing: {
+    minHeight: 300,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paymentProcessingTitle: {
+    color: colors.navy,
+    fontSize: 17,
+    fontWeight: '800',
+    marginTop: 16,
+  },
+  paymentProcessingSubtitle: {
+    color: colors.muted,
+    fontSize: 12,
+    marginTop: 6,
+  },
+  paymentSuccess: {
+    minHeight: 300,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paymentSuccessIcon: {
+    width: 64,
+    height: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 32,
+    backgroundColor: '#35C2A1',
+  },
+  paymentSuccessTitle: {
+    color: colors.navy,
+    fontSize: 20,
+    fontWeight: '900',
+    marginTop: 14,
+  },
+  paymentSuccessSubtitle: {
+    color: colors.muted,
+    fontSize: 12,
+    marginTop: 6,
+  },
+  paymentMilesRemaining: {
+    color: colors.blue,
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 10,
+  },
+  receiptBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(20, 29, 52, 0.45)',
+  },
+  receiptSheet: {
+    maxHeight: '94%',
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 18,
+  },
+  receiptHandle: {
+    width: 42,
+    height: 4,
+    alignSelf: 'center',
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    marginBottom: 6,
+  },
+  receiptHeader: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  receiptTitle: {
+    color: colors.navy,
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  receiptStatusIcon: {
+    width: 58,
+    height: 58,
+    alignSelf: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 29,
+    backgroundColor: '#35C2A1',
+  },
+  receiptStatusTitle: {
+    color: colors.navy,
+    fontSize: 20,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  receiptStatusSubtitle: {
+    color: colors.muted,
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  receiptHeroCard: {
+    borderRadius: 20,
+    backgroundColor: colors.blue,
+    marginTop: 14,
+    padding: 16,
+  },
+  receiptPeopleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  receiptPilotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  receiptPassengerRow: {
+    maxWidth: 150,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  receiptPersonName: {
+    maxWidth: 92,
+    color: colors.white,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  receiptPersonRole: {
+    color: '#DCEEFF',
+    fontSize: 9,
+    marginTop: 2,
+  },
+  receiptRouteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 18,
+  },
+  receiptEndpointRight: {
+    alignItems: 'flex-end',
+  },
+  receiptAirportCode: {
+    color: colors.white,
+    fontSize: 27,
+    fontWeight: '900',
+  },
+  receiptCity: {
+    maxWidth: 82,
+    color: '#EAF4FF',
+    fontSize: 10,
+    marginTop: 2,
+  },
+  receiptTime: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  receiptDuration: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  receiptDurationText: {
+    color: '#EAF4FF',
+    fontSize: 9,
+    marginBottom: 5,
+  },
+  receiptDurationLine: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  receiptDurationDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.white,
+  },
+  receiptDurationDash: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#A9CEFA',
+  },
+  receiptDurationPlane: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  receiptInfoCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    marginTop: 12,
+    paddingHorizontal: 14,
+  },
+  receiptInfoRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  receiptInfoLabel: {
+    color: colors.muted,
+    fontSize: 11,
+  },
+  receiptInfoValue: {
+    maxWidth: 180,
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  receiptInfoDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+  },
+  receiptTotalValue: {
+    color: colors.blue,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  receiptDoneButton: {
+    minHeight: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    backgroundColor: colors.blue,
+    marginTop: 12,
+  },
+  receiptDoneText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '800',
   },
   emptyState: {
     alignItems: 'center',
@@ -2481,8 +3810,8 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   durationPlaneBadge: {
-    width: 22,
-    height: 22,
+    width: 26,
+    height: 26,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 11,
