@@ -1,18 +1,20 @@
 # Volares
 
 <p align="center">
+  <img src="./telasvolares/appvolares.png" alt="Capa oficial do Volares" width="230">
+</p>
+
+<p align="center">
   <img src="./Volares/assets/images/volares-logo.png" alt="Logo oficial do Volares" width="230">
 </p>
 
-<h2 align="center">Meu Projeto acadêmico</h2>
+<h2 align="center">Meu Projeto: Volares</h2>
 
 <p align="center">
-  A proposta do Volares é conectar pessoas que farão o mesmo destino permitindo que pilotos ofereçam em suas aeronaves lugares vazios para compartilhar a viagem e o custo, sendo assim:
-  Pilotos oferecem assentos disponíveis.
-Passageiros procuram viagens compatíveis com sua origem e destino.
-A experiência apresenta piloto, aeronave, horário e preço.
-A reserva é feita diretamente pelo aplicativo.
-Confiança é construída por meio de perfis e informações verificáveis.
+  A proposta do Volares é conectar pessoas com o mesmo destino, permitindo que pilotos
+  ofereçam assentos disponíveis em suas aeronaves para compartilhar a viagem e o custo.
+  Passageiros encontram opções compatíveis com sua origem e seu destino, visualizam
+  piloto, aeronave, horário e preço e fazem a reserva diretamente pelo aplicativo.
 </p>
 
 <p align="center">
@@ -117,8 +119,10 @@ O Volares foi desenvolvido com foco em três pontos:
 ## Tecnologias utilizadas
 
 - Expo SDK 58
-- React 
+- React 19
+- React Native 0.88
 - Expo Router
+- Supabase Auth
 - Supabase Database
 - Sanity CMS
 - Next.js
