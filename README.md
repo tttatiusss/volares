@@ -1,105 +1,128 @@
 # Volares
 
 <p align="center">
-  <img src="./Volares/assets/images/volares-logo.png" alt="Volares" width="230">
+  <img src="./telasvolares/telainicial.png" alt="Capa do aplicativo Volares" width="100%">
 </p>
 
-<h3 align="center">Sua próxima viagem começa aqui</h3>
+<p align="center">
+  <img src="./Volares/assets/images/volares-logo.png" alt="Logo oficial do Volares" width="230">
+</p>
+
+<h2 align="center">Meu Projeto acadêmico</h2>
 
 <p align="center">
-  Aplicativo mobile para buscar voos, visualizar aeronaves e pilotos, realizar reservas e acompanhar os tíquetes.
+  A proposta do Volares é conectar pessoas que farão o mesmo destino permitindo que pilotos ofereçam em suas aeronaves lugares vazios para compartilhar a viagem e o custo, sendo assim:
+  Pilotos oferecem assentos disponíveis.
+Passageiros procuram viagens compatíveis com sua origem e destino.
+A experiência apresenta piloto, aeronave, horário e preço.
+A reserva é feita diretamente pelo aplicativo.
+Confiança é construída por meio de perfis e informações verificáveis.
 </p>
 
 <p align="center">
   <a href="./Volares/README.md">
-    <img src="https://img.shields.io/badge/Instalação-Expo-3593FC?style=for-the-badge&logo=expo&logoColor=white" alt="Guia de instalação">
+    <img src="https://img.shields.io/badge/Instalar_o_app-Expo-3593FC?style=for-the-badge&logo=expo&logoColor=white" alt="Instalar aplicativo">
   </a>
-  <img src="https://img.shields.io/badge/React_Native-0.88.1-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React Native">
-  <img src="https://img.shields.io/badge/Expo-58-000020?style=for-the-badge&logo=expo&logoColor=white" alt="Expo">
-  <img src="https://img.shields.io/badge/Supabase-Auth_%26_Database-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" alt="Supabase">
+  <a href="./telasvolares/demo.mp4">
+    <img src="https://img.shields.io/badge/Assistir_demo-MP4-171078?style=for-the-badge&logo=video&logoColor=white" alt="Vídeo de demonstração">
+  </a>
 </p>
 
 ---
 
-## Demonstração
+## Apresentação do Volares: Seu app de viagens particular
 
-Adicione aqui o vídeo principal do aplicativo.
+O **Volares** é um aplicativo criado para facilitar a busca e a reserva de viagens aéreas.
+A ideia apresentada une praticidade, organização e uma experiência visual mais humana:
+o usuário escolhe a origem, o destino, a data e a quantidade de passageiros, compara as
+opções disponíveis e conclui a reserva em poucos passos.
 
-<!--
-GitHub não reproduz um arquivo MP4 diretamente em Markdown.
-Use uma das opções abaixo:
+---
 
-1. Faça upload do vídeo no GitHub e cole o link gerado:
-<video src="./demo/volares.mp4" controls width="800"></video>
-
-2. Ou adicione uma imagem clicável com o link do YouTube:
-[![Volares em funcionamento](./docs/images/capa-demo.png)](https://www.youtube.com/)
--->
+## Simulação do app
 
 <p align="center">
-  <img src="./Volares/assets/images/tutorial-web.png" alt="Prévia do Volares" width="720">
+  <a href="./telasvolares/demo.mp4">
+    <img src="./telasvolares/telainicial.png" alt="Capa do vídeo de demonstração" width="300">
+  </a>
+</p>
+
+<p align="center">
+  Clique na imagem ou no botão abaixo para assistir à demonstração do aplicativo.
+</p>
+
+<p align="center">
+  <a href="./telasvolares/demo.mp4">
+    <img src="https://img.shields.io/badge/▶_Assistir_demonstracao-FF0000?style=for-the-badge&logo=googlevideo&logoColor=white" alt="Assistir demonstração">
+  </a>
 </p>
 
 ---
 
-## Funcionalidades
+## Como usar o aplicativo
 
-| Buscar voos | Reserva completa | Meus tíquetes |
+| 1. Criar conta | 2. Entrar | 3. Buscar |
 |---|---|---|
-| Escolha origem, destino e data para encontrar opções disponíveis. | Visualize piloto, aeronave, passageiro, pagamento e informações do voo. | Consulte reservas confirmadas em uma experiência de tíquete. |
+| ![Cadastro](./telasvolares/cadastro.png) | ![Login](./telasvolares/login.png) | ![Tela inicial](./telasvolares/telainicial.png) |
+
+O primeiro contato com o Volares começa pelo cadastro ou login. Depois, o usuário define
+a viagem informando cidade ou aeroporto de origem, destino, data, número de passageiros
+e aeronave compatível.
+
+| 4. Comparar resultados | 5. Ver detalhes | 6. Confirmar reserva |
+|---|---|---|
+| ![Resultados](./telasvolares/resultado.png) | ![Detalhes do voo](./telasvolares/detalhes.png) | ![Comprovante](./telasvolares/comprovante.png) |
+
+Após a busca, o aplicativo apresenta as opções disponíveis. O passageiro pode visualizar
+a rota, o horário, a duração, o piloto e os dados da aeronave antes de concluir o
+pagamento. Em seguida, recebe um comprovante com o localizador da reserva.
+
+---
+
+## Minha conta e reservas
+
+<p align="center">
+  <img src="./telasvolares/perfil.png" alt="Tela de perfil do usuário" width="300">
+</p>
+
+Na seção **Perfil**, o usuário acompanha suas informações pessoais e pode encerrar a sessão.
+Na seção **Reservas**, todos os voos confirmados podem ser consultados em formato de
+tíquete, com partida, código do voo, quantidade de passageiros e total pago.
+
+---
+
+## Funcionalidades principais
 
 - Cadastro e autenticação de usuários
-- Consulta de aeroportos e aeronaves
-- Busca de voos por rota e data
-- Filtros por melhor opção, menor preço e menor duração
-- Seleção de quantidade de passageiros
-- Pagamento demonstrativo por cartão, Pix ou milhas
-- Comprovante de voo após a reserva
+- Pesquisa por origem, destino e data
+- Seleção da quantidade de passageiros
+- Compatibilidade com diferentes tipos de aeronave
+- Comparação de opções de viagem
+- Visualização de piloto, aeronave e duração
+- Pagamento por cartão, Pix ou milhas
+- Comprovante com localizador da reserva
+- Tíquetes organizados na área de reservas
 - Perfil do usuário
-- Exclusão segura da conta
-- Painel administrativo com Sanity
+- Limpeza de reservas e exclusão da conta
 
 ---
 
-## Como o Volares funciona
+## Experiência proposta
 
-1. O usuário cria uma conta ou entra com o email e a senha.
-2. Escolhe origem, destino e data da viagem.
-3. O aplicativo consulta o catálogo de voos e aeroportos.
-4. Seleciona uma opção e confirma o passageiro.
-5. Escolhe um método de pagamento.
-6. O sistema gera o comprovante e a reserva.
-7. O tíquete pode ser consultado na aba **Reservas**.
+O Volares foi desenvolvido com foco em três pontos:
 
----
-
-## Capturas do aplicativo
-
-<p align="center">
-  <img src="./Volares/assets/images/icon.png" alt="Ícone do Volares" width="180">
-</p>
-
-<!--
-Substitua os nomes abaixo pelas capturas reais do app:
-
-| Tela inicial | Busca de voos | Comprovante |
-|---|---|---|
-| ![Tela inicial](./docs/images/home.png) | ![Busca](./docs/images/busca.png) | ![Comprovante](./docs/images/comprovante.png) |
-
-| Reservas | Perfil | Painel administrativo |
-|---|---|---|
-| ![Reservas](./docs/images/reservas.png) | ![Perfil](./docs/images/perfil.png) | ![Administração](./docs/images/admin.png) |
--->
+1. **Simples** — o usuário encontra a próxima viagem sem processos complicados.
+2. **Visual** — rotas, horários e valores são apresentados de forma clara.
+3. **Confiável** — piloto, aeronave, passageiro e comprovante ficam visíveis antes e depois da reserva.
+4. **Agilidade e praticidade** - movimentar o mercado de táxi aéreo de uma forma mais prática.
 
 ---
 
-## Tecnologias
+## Tecnologias utilizadas
 
 - Expo SDK 58
-- React 19
-- React Native 0.88
+- React 
 - Expo Router
-- Supabase Auth
 - Supabase Database
 - Sanity CMS
 - Next.js
@@ -111,21 +134,20 @@ Substitua os nomes abaixo pelas capturas reais do app:
 
 ```text
 volares/
+├── telasvolares/           # capa, capturas e vídeo da apresentação
 ├── Volares/                # aplicativo Expo
 │   ├── src/app/            # rotas
 │   ├── src/components/     # telas e componentes
-│   ├── src/lib/            # Supabase e Sanity
+│   ├── src/lib/            # integrações de dados
 │   └── supabase/           # banco e Edge Functions
 └── volastdio/
     ├── studio/             # Sanity Studio
-    └── web/                # painel administrativo Next.js
+    └── web/                # painel administrativo
 ```
 
 ---
 
 ## Executar o projeto
-
-Requisitos: Node.js 20+, npm e conta no Expo.
 
 ```bash
 git clone <LINK_DO_REPOSITORIO>
@@ -134,6 +156,5 @@ npm install
 npx expo start
 ```
 
-O guia completo de instalação, configuração do Supabase e preparação do Sanity está em:
-
-**[README de instalação do Volares](./Volares/README.md)**
+O processo completo de instalação e configuração está disponível no
+[guia de instalação do Volares](./Volares/README.md).
