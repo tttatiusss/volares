@@ -55,9 +55,9 @@ opções disponíveis e conclui a reserva em poucos passos.
 
 ## Como usar o aplicativo
 
-| 1. Criar conta | 2. Entrar | 3. Buscar |
+| 1. Detalhes | 2. Comprovante | 3.Perfil  |
 |---|---|---|
-| ![Cadastro](./telasvolares/cadastro.png) | ![Login](./telasvolares/login.png) | ![Tela inicial](./telasvolares/telainicial.png) |
+| ![Detalhes](./telasvolares/detalhes.png) | ![Comprovante](./telasvolares/comprovante.png) | ![Perfil](./telasvolares/perfil.png) |
 
 O primeiro contato com o Volares começa pelo cadastro ou login. Depois, o usuário define
 a viagem informando cidade ou aeroporto de origem, destino, data, número de passageiros
@@ -70,18 +70,6 @@ e aeronave compatível.
 Após a busca, o aplicativo apresenta as opções disponíveis. O passageiro pode visualizar
 a rota, o horário, a duração, o piloto e os dados da aeronave antes de concluir o
 pagamento. Em seguida, recebe um comprovante com o localizador da reserva.
-
----
-
-## Minha conta e reservas
-
-<p align="center">
-  <img src="./telasvolares/perfil.png" alt="Tela de perfil do usuário" width="300">
-</p>
-
-Na seção **Perfil**, o usuário acompanha suas informações pessoais e pode encerrar a sessão.
-Na seção **Reservas**, todos os voos confirmados podem ser consultados em formato de
-tíquete, com partida, código do voo, quantidade de passageiros e total pago.
 
 ---
 
@@ -103,7 +91,7 @@ tíquete, com partida, código do voo, quantidade de passageiros e total pago.
 
 ## Experiência proposta
 
-O Volares foi desenvolvido com foco em três pontos:
+O Volares foi desenvolvido com foco em quatro pontos:
 
 1. **Simples** — o usuário encontra a próxima viagem sem processos complicados.
 2. **Visual** — rotas, horários e valores são apresentados de forma clara.
