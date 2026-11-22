@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   Pressable,
@@ -222,6 +223,7 @@ export function FlightSearchHome() {
   const [reservationsLoading, setReservationsLoading] = useState(false);
   const [reservationsError, setReservationsError] = useState('');
   const [openReservationReference, setOpenReservationReference] = useState<string | null>(null);
+  const [clearingReservations, setClearingReservations] = useState(false);
   const todayValue = getLocalDateInput();
   const calendarMinimumValue = todayValue;
   const calendarMinimumDate = getDateFromInput(calendarMinimumValue);
@@ -533,15 +535,14 @@ export function FlightSearchHome() {
   function showTab(tab: HomeTab) {
     setActiveTab(tab);
     if (tab === 'reservations') {
-      if (reservations.length === 0) {
-        void loadReservations();
-      }
+      void loadReservations();
     }
   }
 
   async function loadReservations() {
     if (!currentUserId) {
       setReservationsError('Não foi possível identificar sua conta.');
+      setReservationsLoading(false);
       return;
     }
 
@@ -576,6 +577,90 @@ export function FlightSearchHome() {
       );
     } finally {
       setReservationsLoading(false);
+    }
+  }
+
+  async function saveReservation(
+    flight: FlightResult,
+    passengerCount: number,
+    bookingCode: string,
+  ) {
+    if (!currentUserId) return;
+
+    const totalPrice = calculateFlightQuote(flight, passengerCount).total;
+    const reservation: ReservationDetails = {
+      id: `demo-${flight._id}-${Date.now()}`,
+      flightId: flight._id,
+      departureDate: flight.departureTime,
+      passengerCount,
+      totalPrice,
+      currency: 'BRL',
+      status: 'confirmed',
+      bookingReference: bookingCode,
+    };
+
+    setReservations((current) => [reservation, ...current]);
+
+    try {
+      const { error } = await getSupabaseClient()
+        .from('reservations')
+        .insert({
+          user_id: currentUserId,
+          flight_id: flight._id,
+          departure_date: flight.departureTime,
+          passenger_count: passengerCount,
+          total_price: totalPrice,
+          currency: 'BRL',
+          status: 'confirmed',
+          booking_reference: bookingCode,
+        });
+
+      if (error) throw new Error(error.message);
+      await loadReservations();
+    } catch (error) {
+      setReservationsError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível salvar a reserva no servidor.',
+      );
+    }
+  }
+
+  function confirmClearReservations() {
+    Alert.alert(
+      'Limpar reservas',
+      'Todas as suas reservas serão removidas. Deseja continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Limpar', style: 'destructive', onPress: () => void clearReservations() },
+      ],
+    );
+  }
+
+  async function clearReservations() {
+    if (!currentUserId) {
+      setReservationsError('Não foi possível identificar sua conta.');
+      return;
+    }
+
+    setClearingReservations(true);
+    setReservationsError('');
+    try {
+      const { error } = await getSupabaseClient()
+        .from('reservations')
+        .delete()
+        .eq('user_id', currentUserId);
+      if (error) throw new Error(error.message);
+      setReservations([]);
+      setOpenReservationReference(null);
+    } catch (error) {
+      setReservationsError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível limpar suas reservas.',
+      );
+    } finally {
+      setClearingReservations(false);
     }
   }
 
@@ -698,6 +783,8 @@ export function FlightSearchHome() {
                     loading={reservationsLoading}
                     onBrowseFlights={() => showTab('home')}
                     onRetry={() => void loadReservations()}
+                    onClearReservations={confirmClearReservations}
+                    clearingReservations={clearingReservations}
                     initialReservationReference={openReservationReference}
                     onInitialReservationOpened={() => setOpenReservationReference(null)}
                     reservations={reservations}
@@ -716,23 +803,13 @@ export function FlightSearchHome() {
                       profile={profile}
                       onBack={() => setDetailFlightId(null)}
                       onCompleteReceipt={(bookingCode) => {
+                        setDetailFlightId(null);
                         setOpenReservationReference(bookingCode);
                         setActiveTab('reservations');
+                        void loadReservations();
                       }}
                       onPaymentSuccess={(_paymentMethod, bookingCode) =>
-                        setReservations((current) => [
-                          {
-                            id: `demo-${detailFlight._id}-${Date.now()}`,
-                            flightId: detailFlight._id,
-                            departureDate: detailFlight.departureTime,
-                            passengerCount,
-                            totalPrice: calculateFlightQuote(detailFlight, passengerCount).total,
-                            currency: 'BRL',
-                            status: 'confirmed',
-                            bookingReference: bookingCode,
-                          },
-                          ...current,
-                        ])
+                        void saveReservation(detailFlight, passengerCount, bookingCode)
                       }
                     />
                   ) : !hasSearched ? (

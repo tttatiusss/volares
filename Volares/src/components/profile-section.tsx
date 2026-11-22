@@ -111,7 +111,6 @@ export function ProfileSection({
 
   return (
     <View style={styles.content}>
-      <Text style={styles.eyebrow}>MINHA CONTA</Text>
       <Text style={styles.title}>Perfil</Text>
       <Text style={styles.subtitle}>Seus dados pessoais e informações da conta.</Text>
 

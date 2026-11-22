@@ -1,85 +1,156 @@
-# Welcome to your Expo app 👋
+# Volares
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aplicativo de reserva de voos desenvolvido com Expo e React Native.
 
-## Get started
+Este guia permite instalar o Volares em outro computador e executar o produto.
 
-1. Install dependencies
+## O que voce precisa
 
-   ```bash
-   npm install
-   ```
+- Node.js 20 ou superior
+- npm
+- Git
+- Expo Go no celular
+- Um projeto Supabase para autenticação e reservas
+- Um projeto Sanity para o catálogo de voos
 
-2. Start the app
+Você pode executar o app no Expo Go, em emulador ou na versão web.
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Configure Supabase
-
-Create a Supabase project and add its Project URL and publishable key to `.env.local`:
-
-```env
-EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
-```
-
-Use the publishable key, never a `sb_secret_` key in the app. The login and registration screens use Supabase Auth; registration stores the first and last name in the user's Auth metadata. If email confirmation is enabled in Supabase, users must confirm their email before signing in.
-
-## Configure Sanity
-
-Abra o arquivo `.env.local` e substitua somente os valores das variaveis abaixo:
-
-```env
-EXPO_PUBLIC_SANITY_PROJECT_ID=COLOQUE_AQUI_SEU_PROJECT_ID
-EXPO_PUBLIC_SANITY_DATASET=production
-EXPO_PUBLIC_SANITY_API_VERSION=COLOQUE_AQUI_A_DATA_ATUAL
-```
-
-- `EXPO_PUBLIC_SANITY_PROJECT_ID`: copie o Project ID encontrado na configuracao do seu projeto Sanity.
-- `EXPO_PUBLIC_SANITY_DATASET`: normalmente use `production`. So mude se voce criou outro dataset.
-- `EXPO_PUBLIC_SANITY_API_VERSION`: use uma data no formato `AAAA-MM-DD`, por exemplo `2026-11-20`.
-
-A extensao `EXPO_PUBLIC_` faz estas variaveis ficarem disponiveis no app Expo.
-Nao use um token secreto no app. Para conteudo publico, o `@sanity/client` usa o Project ID e o dataset.
-Depois de editar `.env.local`, pare o Expo e inicie novamente com `npx expo start`.
-
-## Get a fresh project
-
-When you're ready, run:
+## 1. Baixe o projeto
 
 ```bash
-npm run reset-project
+git clone <LINK_DO_REPOSITORIO>
+cd volares/Volares
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+## 2. Instale as dependencias
 
-### Other setup steps
+```bash
+npm install
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## 3. Configure o Supabase
 
-## Learn more
+Crie um arquivo `.env.local` dentro da pasta `Volares`:
 
-To learn more about developing your project with Expo, look at the following resources:
+```env
+EXPO_PUBLIC_SUPABASE_URL=https://SEU_PROJETO.supabase.co
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_SUA_CHAVE
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Obtenha a URL e a publishable key em:
 
-## Join the community
+**Supabase > Project Settings > API**
 
-Join our community of developers creating universal apps.
+Use somente a chave publicável. Nunca coloque uma `secret key` ou uma chave
+com prefixo `sb_secret_` no aplicativo.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Se o banco ainda não tiver sido criado, execute os arquivos SQL da pasta
+`supabase/migrations` no Supabase SQL Editor nesta ordem:
+
+1. `20261120154100_initial_schema.sql`
+2. `20261120161800_aircraft_catalog.sql`
+3. `20261120162100_aircraft_catalog.sql`
+4. `20261120160200_seed_private_airports.sql`
+
+Depois, em **Authentication > Providers > Email**, habilite o acesso por
+email e senha. Informe em **Authentication > URL Configuration** os links
+usados pelo aplicativo caso a confirmação de email esteja ativa.
+
+## 4. Configure o Sanity
+
+Ainda no arquivo `.env.local`, adicione:
+
+```env
+EXPO_PUBLIC_SANITY_PROJECT_ID=SEU_PROJECT_ID
+EXPO_PUBLIC_SANITY_DATASET=production
+EXPO_PUBLIC_SANITY_API_VERSION=2026-11-20
+```
+
+O Project ID está no painel do projeto Sanity. Não coloque token privado,
+API secret ou outras credenciais administrativas neste arquivo.
+
+## 5. Execute o aplicativo
+
+Depois de salvar `.env.local`, reinicie o Expo:
+
+```bash
+npx expo start
+```
+
+Em seguida:
+
+- pressione `a` para Android;
+- pressione `i` para iOS no macOS;
+- pressione `w` para abrir no navegador;
+- escaneie o QR Code com o aplicativo Expo Go.
+
+Para celular e computador na mesma rede, mantenha ambos conectados ao mesmo
+Wi-Fi.
+
+## Testar uma conta
+
+1. Abra o app.
+2. Escolha criar conta.
+3. Informe nome, sobrenome, email e senha.
+4. Confirme o email se essa opção estiver habilitada no Supabase.
+5. Entre no app.
+6. Escolha origem, destino e data.
+7. Selecione um voo.
+8. Conclua o pagamento de demonstração.
+9. Confirme o tíquete em **Reservas**.
+
+## Comandos principais
+
+Na pasta `Volares`:
+
+```bash
+npm run web       # abre no navegador
+npm run android   # abre no Android
+npm run ios       # abre no iOS
+npm run lint      # verifica problemas no codigo
+npx expo start    # inicia o projeto Expo
+```
+
+## Opcional: executar o Studio Sanity
+
+```bash
+cd ../volastdio/studio
+npm install
+npx sanity login
+npm run dev
+```
+
+O Studio fica disponível em uma URL exibida pelo terminal.
+
+## Problemas comuns
+
+### O app mostra erro de configuração
+
+Verifique se `.env.local` está dentro da pasta `Volares` e se os nomes das
+variáveis estão escritos exatamente como neste guia. Reinicie o Expo depois
+de alterar o arquivo.
+
+### Expo Go não encontra o projeto
+
+Confirme que o computador e o celular estão no mesmo Wi-Fi. Reinicie
+`npx expo start` ou use o modo tunnel:
+
+```bash
+npx expo start --tunnel
+```
+
+### Login não funciona
+
+Confirme que o provedor Email está habilitado no Supabase e que a migration
+de autenticação foi executada.
+
+## Estrutura principal
+
+```text
+Volares/
+├── src/app/               # rotas do aplicativo
+├── src/components/       # telas e componentes
+├── src/lib/              # integrações Supabase e Sanity
+├── supabase/migrations/  # estrutura do banco
+└── assets/               # imagens e ícones
+```

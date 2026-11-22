@@ -1,7 +1,6 @@
 import { Image } from 'expo-image';
-import { SymbolView } from 'expo-symbols';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { BrandAssets } from '@/constants/brand';
 
@@ -22,6 +21,8 @@ type ReservationsSectionProps = {
   error: string;
   onRetry: () => void;
   onBrowseFlights: () => void;
+  onClearReservations: () => void;
+  clearingReservations: boolean;
   initialReservationReference?: string | null;
   onInitialReservationOpened?: () => void;
 };
@@ -90,50 +91,59 @@ function ReservationCard({
     <Pressable
       accessibilityRole="button"
       onPress={() => onOpenTicket(reservation)}
-      style={({ pressed }) => [styles.reservationCard, pressed && styles.pressed]}>
-      <View style={styles.cardHeading}>
-        <View>
-          <Text style={styles.referenceLabel}>LOCALIZADOR</Text>
-          <Text style={styles.reference}>{reservation.bookingReference}</Text>
+      style={({ pressed }) => [styles.reservationTicket, pressed && styles.pressed]}>
+      <View style={styles.ticketTop}>
+        <View style={styles.ticketPlaneBadge}>
+          <Image
+            accessibilityLabel="Piloto"
+            contentFit="cover"
+            source={BrandAssets.pilotPlaceholder}
+            style={styles.ticketPilotImage}
+          />
         </View>
-        <View style={styles.statusBadge}>
-          <Text style={styles.statusText}>
+        <View>
+          <Text style={styles.ticketLabel}>LOCALIZADOR</Text>
+          <Text style={styles.ticketReference}>
+            {reservation.bookingReference}
+          </Text>
+        </View>
+        <View style={styles.confirmedBadge}>
+          <Text style={styles.confirmedText}>
             {statusLabels[reservation.status] ?? reservation.status}
           </Text>
         </View>
       </View>
 
-      <View style={styles.divider} />
+      <View style={styles.ticketDivider} />
 
-      <View style={styles.detailRow}>
-        <SymbolView
-          name={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }}
-          tintColor={colors.blue}
-          size={18}
-        />
-        <View style={styles.detailCopy}>
-          <Text style={styles.detailLabel}>Partida</Text>
-          <Text style={styles.detailValue}>{formatDeparture(reservation.departureDate)}</Text>
-        </View>
-      </View>
-      <View style={styles.detailRow}>
-        <View style={styles.planeIconBadge}>
-          <PaperPlaneIcon />
-        </View>
-        <View style={styles.detailCopy}>
-          <Text style={styles.detailLabel}>Código do voo</Text>
-          <Text numberOfLines={1} style={styles.detailValue}>
-            {reservation.flightId}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.cardFooter}>
-        <Text style={styles.passengerCount}>
-          {reservation.passengerCount}{' '}
-          {reservation.passengerCount === 1 ? 'passageiro' : 'passageiros'}
+      <View style={styles.ticketRow}>
+        <Text style={styles.ticketFieldLabel}>Partida</Text>
+        <Text style={styles.ticketFieldValue}>
+          {formatDeparture(reservation.departureDate)}
         </Text>
-        <Text style={styles.totalPrice}>
+      </View>
+      <View style={styles.ticketRow}>
+        <Text style={styles.ticketFieldLabel}>Voo</Text>
+        <Text numberOfLines={1} style={styles.ticketFieldValue}>
+          {reservation.flightId}
+        </Text>
+      </View>
+      <View style={styles.ticketRow}>
+        <Text style={styles.ticketFieldLabel}>Passageiros</Text>
+        <Text style={styles.ticketFieldValue}>
+          {reservation.passengerCount}
+        </Text>
+      </View>
+
+      <View style={styles.ticketCut}>
+        <View style={styles.ticketCutCircleLeft} />
+        <View style={styles.ticketCutLine} />
+        <View style={styles.ticketCutCircleRight} />
+      </View>
+
+      <View style={styles.ticketFooter}>
+        <Text style={styles.ticketTotalLabel}>Total pago</Text>
+        <Text style={styles.ticketTotalValue}>
           {formatPrice(reservation.totalPrice, reservation.currency)}
         </Text>
       </View>
@@ -147,28 +157,44 @@ export function ReservationsSection({
   error,
   onRetry,
   onBrowseFlights,
+  onClearReservations,
+  clearingReservations,
   initialReservationReference,
   onInitialReservationOpened,
 }: ReservationsSectionProps) {
   const [selectedReservation, setSelectedReservation] =
-    useState<ReservationDetails | null>(null);
-
-  useEffect(() => {
-    if (!initialReservationReference || loading) return;
-    const reservation = reservations.find(
-      (item) => item.bookingReference === initialReservationReference,
+    useState<ReservationDetails | null>(() =>
+      initialReservationReference
+        ? reservations.find(
+            (item) => item.bookingReference === initialReservationReference,
+          ) ?? null
+        : null,
     );
-    if (!reservation) return;
-    setSelectedReservation(reservation);
-    onInitialReservationOpened?.();
-  }, [initialReservationReference, loading, onInitialReservationOpened, reservations]);
 
   return (
     <>
     <View style={styles.content}>
-      <Text style={styles.eyebrow}>SUA CONTA</Text>
       <Text style={styles.title}>Minhas reservas</Text>
       <Text style={styles.subtitle}>Acompanhe os detalhes dos seus voos.</Text>
+      {reservations.length > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Limpar todas as reservas"
+          accessibilityState={{ disabled: clearingReservations }}
+          disabled={clearingReservations}
+          onPress={onClearReservations}
+          style={({ pressed }) => [
+            styles.clearReservationsButton,
+            pressed && styles.pressed,
+            clearingReservations && styles.clearReservationsButtonDisabled,
+          ]}>
+          {clearingReservations ? (
+            <ActivityIndicator color={colors.error} size="small" />
+          ) : (
+            <Text style={styles.clearReservationsText}>Limpar reservas</Text>
+          )}
+        </Pressable>
+      ) : null}
 
       {loading ? (
         <View style={styles.state}>
@@ -215,7 +241,10 @@ export function ReservationsSection({
     </View>
     <Modal
       animationType="slide"
-      onRequestClose={() => setSelectedReservation(null)}
+      onRequestClose={() => {
+        setSelectedReservation(null);
+        onInitialReservationOpened?.();
+      }}
       transparent
       visible={selectedReservation !== null}>
       <View style={styles.ticketBackdrop}>
@@ -229,7 +258,10 @@ export function ReservationsSection({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Fechar tíquete"
-              onPress={() => setSelectedReservation(null)}
+              onPress={() => {
+                setSelectedReservation(null);
+                onInitialReservationOpened?.();
+              }}
               style={styles.ticketClose}>
               <Text style={styles.ticketCloseText}>×</Text>
             </Pressable>
@@ -240,7 +272,12 @@ export function ReservationsSection({
               <View style={styles.ticketCard}>
                 <View style={styles.ticketTop}>
                   <View style={styles.ticketPlaneBadge}>
-                    <PaperPlaneIcon />
+                    <Image
+                      accessibilityLabel="Piloto"
+                      contentFit="cover"
+                      source={BrandAssets.pilotPlaceholder}
+                      style={styles.ticketPilotImage}
+                    />
                   </View>
                   <View>
                     <Text style={styles.ticketLabel}>LOCALIZADOR</Text>
@@ -288,7 +325,10 @@ export function ReservationsSection({
               </View>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => setSelectedReservation(null)}
+                onPress={() => {
+                  setSelectedReservation(null);
+                  onInitialReservationOpened?.();
+                }}
                 style={({ pressed }) => [
                   styles.ticketDoneButton,
                   pressed && styles.pressed,
@@ -330,6 +370,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginTop: 5,
+  },
+  clearReservationsButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    justifyContent: 'center',
+    minHeight: 36,
+    marginTop: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F1C5CC',
+    backgroundColor: '#FFF7F8',
+    paddingHorizontal: 12,
+  },
+  clearReservationsButtonDisabled: {
+    opacity: 0.65,
+  },
+  clearReservationsText: {
+    color: colors.error,
+    fontSize: 12,
+    fontWeight: '700',
   },
   state: {
     alignItems: 'center',
@@ -392,6 +452,13 @@ const styles = StyleSheet.create({
   },
   list: {
     marginTop: 22,
+  },
+  reservationTicket: {
+    borderRadius: 18,
+    backgroundColor: '#EFF6FF',
+    marginBottom: 14,
+    paddingHorizontal: 16,
+    paddingTop: 14,
   },
   reservationCard: {
     borderWidth: 1,
@@ -557,6 +624,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 13,
     backgroundColor: colors.blue,
+    overflow: 'hidden',
+  },
+  ticketPilotImage: {
+    width: 42,
+    height: 42,
   },
   ticketLabel: {
     color: colors.muted,
