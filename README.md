@@ -1,10 +1,6 @@
 # Volares
 
 <p align="center">
-  <img src="./telasvolares/telainicial.png" alt="Capa do aplicativo Volares" width="100%">
-</p>
-
-<p align="center">
   <img src="./Volares/assets/images/volares-logo.png" alt="Logo oficial do Volares" width="230">
 </p>
 
