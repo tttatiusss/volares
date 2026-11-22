@@ -53,25 +53,11 @@ opções disponíveis e conclui a reserva em poucos passos.
 
 ---
 
-## Como usar o aplicativo
+## Telas
 
 | 1. Detalhes | 2. Comprovante | 3.Perfil  |
 |---|---|---|
 | ![Detalhes](./telasvolares/detalhes.png) | ![Comprovante](./telasvolares/comprovante.png) | ![Perfil](./telasvolares/perfil.png) |
-
-O primeiro contato com o Volares começa pelo cadastro ou login. Depois, o usuário define
-a viagem informando cidade ou aeroporto de origem, destino, data, número de passageiros
-e aeronave compatível.
-
-| 4. Comparar resultados | 5. Ver detalhes | 6. Confirmar reserva |
-|---|---|---|
-| ![Resultados](./telasvolares/resultado.png) | ![Detalhes do voo](./telasvolares/detalhes.png) | ![Comprovante](./telasvolares/comprovante.png) |
-
-Após a busca, o aplicativo apresenta as opções disponíveis. O passageiro pode visualizar
-a rota, o horário, a duração, o piloto e os dados da aeronave antes de concluir o
-pagamento. Em seguida, recebe um comprovante com o localizador da reserva.
-
----
 
 ## Funcionalidades principais
 
