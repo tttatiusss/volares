@@ -4,10 +4,6 @@
   <img src="./telasvolares/appvolares.png" alt="Capa oficial do Volares" width="230">
 </p>
 
-<p align="center">
-  <img src="./Volares/assets/images/volares-logo.png" alt="Logo oficial do Volares" width="230">
-</p>
-
 <h2 align="center">Meu Projeto: Volares</h2>
 
 <p align="center">
