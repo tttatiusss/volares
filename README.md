@@ -17,9 +17,6 @@
   <a href="./Volares/README.md">
     <img src="https://img.shields.io/badge/Instalar_o_app-Expo-3593FC?style=for-the-badge&logo=expo&logoColor=white" alt="Instalar aplicativo">
   </a>
-  <a href="./telasvolares/demo.mp4">
-    <img src="https://img.shields.io/badge/Assistir_demo-MP4-171078?style=for-the-badge&logo=video&logoColor=white" alt="Vídeo de demonstração">
-  </a>
 </p>
 
 ---
@@ -36,19 +33,7 @@ opções disponíveis e conclui a reserva em poucos passos.
 ## Simulação do app
 
 <p align="center">
-  <a href="./telasvolares/demo.mp4">
-    <img src="./telasvolares/telainicial.png" alt="Capa do vídeo de demonstração" width="300">
-  </a>
-</p>
-
-<p align="center">
-  Clique na imagem ou no botão abaixo para assistir à demonstração do aplicativo.
-</p>
-
-<p align="center">
-  <a href="./telasvolares/demo.mp4">
-    <img src="https://img.shields.io/badge/▶_Assistir_demonstracao-FF0000?style=for-the-badge&logo=googlevideo&logoColor=white" alt="Assistir demonstração">
-  </a>
+  <img src="./telasvolares/demo.gif" alt="Demonstração automática do aplicativo Volares" width="300">
 </p>
 
 ---
